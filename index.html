@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#27326a">
+<title>SAJC Latecoming</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<!--
+  SAJC LATECOMING — gate scanner
+  ==========================================================================
+  Built 31 July 2026 for discipline@sajc.edu.sg.
+
+  PASTE THE DEPLOYMENT URL INTO GAS_URL BELOW. Nothing else in this file
+  needs editing, ever. The thresholds, the bell times and the roster all come
+  from the spreadsheet at run time.
+
+  THE LOOP
+  --------------------------------------------------------------------------
+  Sign in once, then camera -> confirm -> next. THERE IS NO VENUE STEP: it
+  stopped mattering, so it is gone from the screen and from the record. That
+  takes the loop from four screens to three.
+
+  WHERE THE DATA LIVES
+  --------------------------------------------------------------------------
+  In memory, and in sessionStorage — which the browser wipes the moment this
+  tab is closed. NEVER localStorage; the file also clears any stale
+  localStorage token left by an older build. GitHub serves this blank page;
+  every student name travels straight between Google and the phone.
+
+  WHAT THIS FILE DOES NOT DECIDE
+  --------------------------------------------------------------------------
+  Whether an arrival counts as one late or two. That is the server's, from the
+  server's clock — after 09:00, or 09:30 on a Thursday. The phone never sends
+  a weight and could not fake one.
+  ==========================================================================
+-->
+<style>
+:root{
+  --accent:#27326a; --accent-deep:#1b2450; --accent-tint:#e8eaf3;
+  --paper:#f7f5f1; --raised:#fffdfa; --line:#e4ded4;
+  --ink:#1b1e2b; --muted:#6e7180;
+  --good:#2f6b4f; --good-tint:#e6f0ea;
+  --warn:#8a5a12; --warn-tint:#f7edda;
+  --bad:#9d372e;  --bad-tint:#f7e8e5;
+  --ease:cubic-bezier(.22,.61,.36,1);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overscroll-behavior:none}
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:'Public Sans',system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:17px; line-height:1.55; letter-spacing:-.005em;
+  display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+}
+.prog{height:2px;background:rgba(39,50,106,.10);flex:0 0 auto}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .55s var(--ease)}
+.top{
+  flex:0 0 auto;padding:14px 24px 0;display:flex;align-items:center;
+  justify-content:space-between;min-height:44px;
+}
+.brand{
+  font-family:'Fraunces',Georgia,serif;
+  font-variation-settings:'opsz' 14,'SOFT' 40,'WONK' 1;
+  font-weight:600;font-size:14.5px;color:var(--accent);
+}
+.brand em{font-style:normal;color:var(--muted);font-weight:400}
+.back{
+  border:0;background:none;color:var(--muted);font:inherit;font-size:14.5px;
+  cursor:pointer;padding:6px 2px;opacity:0;pointer-events:none;transition:opacity .3s;
+}
+.back.on{opacity:1;pointer-events:auto}
+.stage{flex:1;position:relative;overflow:hidden}
+.pane{
+  position:absolute;inset:0;padding:18px 24px 34px;
+  display:flex;flex-direction:column;justify-content:center;
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  opacity:0;transform:translateY(22px);pointer-events:none;
+  transition:opacity .42s var(--ease),transform .42s var(--ease);
+}
+.pane.on{opacity:1;transform:none;pointer-events:auto}
+.pane.out{opacity:0;transform:translateY(-16px)}
+.pane.flow{justify-content:flex-start;padding-top:10px}
+.pane.on>*{animation:rise .5s var(--ease) backwards}
+.pane.on>*:nth-child(1){animation-delay:.03s}
+.pane.on>*:nth-child(2){animation-delay:.08s}
+.pane.on>*:nth-child(3){animation-delay:.13s}
+.pane.on>*:nth-child(4){animation-delay:.18s}
+.pane.on>*:nth-child(5){animation-delay:.23s}
+.pane.on>*:nth-child(6){animation-delay:.28s}
+.pane.on>*:nth-child(7){animation-delay:.33s}
+@keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+
+.eyebrow{
+  font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 12px;
+}
+h1,h2{
+  font-family:'Fraunces',Georgia,serif;
+  font-variation-settings:'opsz' 60,'SOFT' 30,'WONK' 1;
+  font-weight:600;letter-spacing:-.018em;line-height:1.12;margin:0 0 8px;
+}
+h1{font-size:36px}
+h2{font-size:28px}
+.lede{color:var(--muted);font-size:15.5px;margin:0 0 24px;max-width:32ch}
+.big-name{
+  font-family:'Fraunces',Georgia,serif;
+  font-variation-settings:'opsz' 90,'SOFT' 20,'WONK' 1;
+  font-weight:600;font-size:36px;line-height:1.07;letter-spacing:-.025em;margin:0 0 6px;
+}
+.sub{color:var(--muted);font-size:16px;margin:0}
+
+.field{margin-bottom:20px}
+.field label{
+  display:block;font-size:12.5px;font-weight:600;letter-spacing:.045em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:9px;
+}
+.field input{
+  width:100%;border:0;border-bottom:2px solid var(--line);background:transparent;
+  font:inherit;font-size:22px;padding:6px 2px 11px;color:var(--ink);
+  transition:border-color .28s var(--ease);
+}
+.field input::placeholder{color:#b9b3a8}
+.field input:focus{outline:none;border-bottom-color:var(--accent)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:11px;
+  border:0;border-radius:11px;background:var(--accent);color:#fff;
+  font:inherit;font-weight:600;font-size:16.5px;padding:15px 24px;cursor:pointer;
+  box-shadow:0 1px 2px rgba(27,30,43,.14),0 6px 18px -8px rgba(39,50,106,.55);
+  transition:transform .16s var(--ease),box-shadow .22s var(--ease),background .2s;
+}
+.btn:hover{background:var(--accent-deep);transform:translateY(-1.5px)}
+.btn:active{transform:translateY(1px);box-shadow:0 1px 2px rgba(27,30,43,.16)}
+.btn:disabled{opacity:.55;transform:none;box-shadow:none;cursor:default}
+.btn.wide{width:100%}
+.btn.quiet{background:transparent;color:var(--accent);box-shadow:none;border:1.5px solid var(--line)}
+.btn.quiet:hover{background:var(--accent-tint);border-color:transparent}
+.btn.plain{background:none;color:var(--muted);box-shadow:none;padding:12px 4px;font-weight:500;
+  justify-content:center;text-align:center}
+.btn.plain:hover{color:var(--accent);background:none;transform:none}
+.stack{display:flex;flex-direction:column;gap:9px;margin-top:8px}
+
+.choice{
+  display:flex;align-items:center;gap:13px;width:100%;text-align:left;
+  padding:15px 17px;margin-bottom:9px;border:1.5px solid var(--line);
+  border-radius:13px;background:var(--raised);font:inherit;color:var(--ink);
+  cursor:pointer;transition:border-color .2s,background .2s,transform .16s var(--ease),box-shadow .2s;
+}
+.choice:hover{border-color:var(--accent);transform:translateX(2.5px)}
+.choice:active{transform:translateX(1px) scale(.995)}
+.choice .key{
+  flex:0 0 auto;width:27px;height:27px;border-radius:7px;border:1.5px solid var(--line);
+  display:grid;place-items:center;font-size:12.5px;font-weight:600;color:var(--muted);transition:all .2s;
+}
+.choice .txt{flex:1;min-width:0}
+.choice .txt b{display:block;font-weight:600;font-size:16.5px;letter-spacing:-.01em}
+.choice .txt span{display:block;font-size:13.5px;color:var(--muted);margin-top:1px}
+.choice .flag{
+  flex:0 0 auto;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;
+  background:var(--bad-tint);color:var(--bad);
+}
+.choice.sel{border-color:var(--accent);background:var(--accent-tint)}
+.choice.sel .key{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.note{padding:13px 16px;border-radius:11px;font-size:14.5px;margin-bottom:18px;
+  border-left:3px solid;line-height:1.5}
+.note.err{background:var(--bad-tint);color:var(--bad);border-color:var(--bad)}
+.note.warn{background:var(--warn-tint);color:var(--warn);border-color:var(--warn)}
+.note.ok{background:var(--good-tint);color:var(--good);border-color:var(--good)}
+
+.tick{width:74px;height:74px;border-radius:50%;background:var(--good-tint);
+  display:grid;place-items:center;margin:0 auto 20px;animation:pop .55s var(--ease) backwards .08s}
+.tick svg{width:34px;height:34px;stroke:var(--good);stroke-width:2.6;fill:none;
+  stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:32;stroke-dashoffset:32;
+  animation:draw .5s var(--ease) forwards .3s}
+@keyframes pop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
+.centered{text-align:center}
+.centered .lede{margin-left:auto;margin-right:auto}
+
+.spin{width:26px;height:26px;border:2.5px solid var(--line);border-top-color:var(--accent);
+  border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 22px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hint{font-size:12.5px;color:var(--muted);margin-top:18px;text-align:center}
+.grouphead{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.14em;
+  text-transform:uppercase;margin:18px 0 9px}
+
+/* ── the card scanner ───────────────────────────────────────────────── */
+.viewfinder{
+  position:relative;width:100%;aspect-ratio:4/3;background:#000;
+  border-radius:16px;overflow:hidden;margin:4px 0 18px;
+}
+.viewfinder video{width:100%;height:100%;object-fit:cover;display:block}
+.vf-overlay{position:absolute;inset:0;pointer-events:none}
+.vf-overlay svg{position:absolute;inset:0;width:100%;height:100%}
+.vf-label,.vf-name{
+  position:absolute;left:7%;width:86%;text-align:center;color:rgba(255,255,255,.92);
+  font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  text-shadow:0 1px 5px rgba(0,0,0,.9);
+}
+.vf-label{top:5.5%}
+.vf-name{top:88.5%;color:rgba(255,255,255,.78)}
+.vf-busy{
+  position:absolute;inset:0;background:rgba(0,0,0,.78);display:none;
+  flex-direction:column;align-items:center;justify-content:center;color:#fff;
+}
+.vf-busy.on{display:flex}
+.vf-busy p{margin:0;font-size:14.5px;color:rgba(255,255,255,.85)}
+.shutter-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.shutter{
+  flex:0 0 auto;width:72px;height:72px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--accent);box-shadow:0 0 0 5px var(--paper),0 0 0 7px var(--accent),
+    0 6px 20px -8px rgba(39,50,106,.6);
+  transition:transform .16s var(--ease),background .2s;
+}
+.shutter:hover{background:var(--accent-deep)}
+.shutter:active{transform:scale(.93)}
+.shutter:disabled{opacity:.5;cursor:default}
+.shutter-row .btn.plain{flex:1;min-width:0}
+canvas{display:none}
+</style>
+</head>
+<body>
+
+<div class="prog"><i id="bar"></i></div>
+<div class="top">
+  <div class="brand">SAJC Discipline Committee <em id="hdrSub"></em></div>
+  <button class="back" id="back" onclick="goBack()">← Back</button>
+</div>
+
+<div class="stage">
+
+<!-- 1 · LOGIN -->
+<section class="pane on" id="pLogin">
+  <p class="eyebrow" id="loginDate"></p>
+  <h1>Latecoming</h1>
+  <div id="mLogin"></div>
+  <div class="field">
+    <label for="who">Your name</label>
+    <input id="who" autocomplete="name">
+  </div>
+  <div class="field">
+    <label for="pw">Password</label>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+  </div>
+  <button class="btn wide" id="btnLogin" onclick="doLogin()">Sign in</button>
+</section>
+
+<!-- 2 · LOADING -->
+<section class="pane centered" id="pLoading">
+  <div class="spin"></div>
+  <h2 id="loadMsg">Fetching the roster</h2>
+  <p class="lede">This happens once. Everything after it is instant.</p>
+</section>
+
+<!-- 3 · HOME -->
+<section class="pane" id="pHome">
+  <p class="eyebrow" id="homeEyebrow"></p>
+  <h1>Ready.</h1>
+  <p class="lede" id="homeStats"></p>
+  <div id="mHome"></div>
+  <div class="stack">
+    <button class="btn wide" onclick="goScan()">📷 Scan a card</button>
+    <button class="btn quiet wide" onclick="goType()">Type a name</button>
+  </div>
+  <div id="recentWrap" style="display:none;margin-top:26px">
+    <p class="eyebrow">Recorded this session</p>
+    <div id="recentList"></div>
+  </div>
+  <div class="stack" style="margin-top:22px">
+    <button class="btn plain" onclick="refreshAll()">↻ Refresh the roster</button>
+    <button class="btn plain" onclick="signOut()">Sign out</button>
+  </div>
+  <p class="hint" id="loadedAt"></p>
+</section>
+
+<!-- 4 · SCAN -->
+<section class="pane flow" id="pFind">
+  <p class="eyebrow" id="scanWho"></p>
+  <h2>Scan their card</h2>
+  <div id="mScan"></div>
+  <div class="viewfinder">
+    <video id="cam" playsinline muted autoplay></video>
+    <div class="vf-overlay">
+      <svg viewBox="0 0 100 75" preserveAspectRatio="none">
+        <path d="M7,10.5 L7,21 M7,10.5 L20,10.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
+        <path d="M93,10.5 L93,21 M93,10.5 L80,10.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
+        <path d="M7,64.5 L7,54 M7,64.5 L20,64.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
+        <path d="M93,64.5 L93,54 M93,64.5 L80,64.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
+      </svg>
+      <div class="vf-label">Fit the card to the box</div>
+      <div class="vf-name">Name must be inside</div>
+    </div>
+    <div class="vf-busy" id="vfBusy"><div class="spin"></div><p>Reading the card</p></div>
+  </div>
+  <div class="shutter-row">
+    <button class="btn plain" onclick="leaveScan()">Back</button>
+    <button class="shutter" id="btnShot" onclick="capture()" aria-label="Take the photo"></button>
+    <button class="btn plain" onclick="goType()">Type instead</button>
+  </div>
+  <canvas id="shot"></canvas>
+</section>
+
+<!-- 5 · TYPE -->
+<section class="pane flow" id="pType">
+  <p class="eyebrow" id="typeWho"></p>
+  <h2>Find the student</h2>
+  <div id="mType"></div>
+  <div class="field" style="margin-top:12px">
+    <label for="q">Type any part of the name, or a class</label>
+    <input id="q" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="onSearch()">
+  </div>
+  <div id="hits"></div>
+</section>
+
+<!-- 6 · MATCH -->
+<section class="pane flow" id="pMatch">
+  <p class="eyebrow">From the card</p>
+  <h2>Which one?</h2>
+  <div id="mMatch"></div>
+  <div id="matchList"></div>
+  <div class="stack" style="margin-top:14px">
+    <button class="btn plain" onclick="goType()">None of these — type the name</button>
+    <button class="btn plain" onclick="goScan()">Scan again</button>
+  </div>
+</section>
+
+<!-- 7 · CONFIRM -->
+<section class="pane" id="pConfirm">
+  <p class="eyebrow" id="cWho"></p>
+  <p class="big-name" id="cName"></p>
+  <p class="sub" id="cCls"></p>
+  <div id="mConfirm" style="margin-top:20px"></div>
+  <div class="stack" style="margin-top:22px">
+    <button class="btn wide" id="btnRecord" onclick="record()">Record the late</button>
+    <button class="btn plain" onclick="goBack()">Not them</button>
+  </div>
+</section>
+
+<!-- 8 · DONE -->
+<section class="pane centered" id="pDone">
+  <div class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 7"/></svg></div>
+  <h2>Saved</h2>
+  <p class="lede" id="dWhat"></p>
+  <div id="mDone"></div>
+  <div class="stack">
+    <button class="btn wide" onclick="nextStudent()">Next student</button>
+    <button class="btn plain" id="btnUndo" onclick="undoLast()">Undo — that was the wrong student</button>
+  </div>
+</section>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════
+   PASTE YOUR DEPLOYMENT URL HERE — the one ending in /exec
+   ═══════════════════════════════════════════════════════════════════════ */
+var GAS_URL = 'PASTE_YOUR_EXEC_URL_HERE';
+
+/* Any token an older build left in localStorage is wiped on load. Nothing
+   here ever writes to it. */
+try { localStorage.removeItem('gt_token'); localStorage.removeItem('sajc_token'); } catch(e){}
+
+var S = {
+  token:null, who:'', students:[], today:{},
+  cfg:{minScore:.72,minMargin:.15,cooldown:15},
+  student:null, lastEntry:null, recent:[], done:0, loadedAt:'', candidates:[]
+};
+
+var PANES = { login:'pLogin', loading:'pLoading', home:'pHome', find:'pFind',
+              type:'pType', match:'pMatch', confirm:'pConfirm', done:'pDone' };
+var PROGRESS = { login:0, loading:.08, home:0, find:.3, type:.3, match:.55,
+                 confirm:.78, done:1 };
+var HISTORY = [];
+var current = 'login';
+
+/* ── transitions ────────────────────────────────────────────────────── */
+function go(name, isBack){
+  if (name === current) { paint(name); return; }
+  var cur = document.getElementById(PANES[current]);
+  var nxt = document.getElementById(PANES[name]);
+  cur.classList.remove('on');
+  if (!isBack) { cur.classList.add('out'); setTimeout(function(){ cur.classList.remove('out'); }, 430); }
+  if (!isBack && current !== 'loading') HISTORY.push(current);
+  current = name;
+  paint(name);
+  nxt.classList.add('on');
+  nxt.scrollTop = 0;
+  document.getElementById('bar').style.width = (PROGRESS[name] * 100) + '%';
+  document.getElementById('back').classList.toggle('on',
+    name !== 'login' && name !== 'loading' && name !== 'home');
+}
+function goBack(){
+  var prev = HISTORY.pop() || 'home';
+  if (prev === 'loading' || prev === 'login') prev = 'home';
+  go(prev, true);
+}
+function paint(name){
+  if (name !== 'find') stopCamera();          // never leave the camera running
+  if (name === 'home') paintHome();
+  if (name === 'find'){
+    document.getElementById('scanWho').textContent = 'Student No. ' + (S.done + 1);
+    say('mScan','');
+  }
+  if (name === 'type'){
+    document.getElementById('typeWho').textContent = 'Student No. ' + (S.done + 1);
+    document.getElementById('q').value = '';
+    document.getElementById('hits').innerHTML = '';
+    say('mType','');
+  }
+}
+
+/** "Friday, 31 July 2026" — built by hand so it reads the same on every device. */
+function dateLine(){
+  var D=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var M=['January','February','March','April','May','June','July',
+         'August','September','October','November','December'];
+  var d=new Date();
+  return D[d.getDay()] + ', ' + d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear();
+}
+function say(where, text, kind){
+  var el = document.getElementById(where);
+  if (!el) return;
+  if (!text) { el.innerHTML=''; return; }
+  el.innerHTML = '<div class="note ' + (kind||'err') + '"></div>';
+  el.firstChild.textContent = text;
+}
+
+/* ── server ─────────────────────────────────────────────────────────── */
+function post(action, body){
+  var payload = Object.assign({ action:action, token:S.token }, body||{});
+  return fetch(GAS_URL, { method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if (j && j.needsLogin) { signOut(j.error); throw new Error(j.error); } return j; })
+    .catch(function(){
+      if (GAS_URL.indexOf('PASTE_YOUR') === 0)
+        throw new Error('This page has not been connected yet — the deployment URL is still the placeholder in gate.html.');
+      throw new Error(navigator.onLine
+        ? 'Could not reach the server. If the code was just changed, it needs redeploying as a NEW VERSION of the existing deployment.'
+        : 'No internet connection. Nothing has been saved.');
+    });
+}
+
+/* ── login ──────────────────────────────────────────────────────────── */
+function doLogin(){
+  var who = document.getElementById('who').value.trim();
+  var pw  = document.getElementById('pw').value;
+  if (!who) { say('mLogin','Put your name in — it goes into the record so the DC knows who was on duty.'); return; }
+  if (!pw)  { say('mLogin','Enter the password.'); return; }
+  var b = document.getElementById('btnLogin');
+  b.disabled = true; b.textContent = 'Signing in…'; say('mLogin','');
+  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({ action:'login', password:pw }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      b.disabled = false; b.textContent = 'Sign in';
+      if (!j.ok) { say('mLogin', j.error || 'Could not sign in.'); return; }
+      S.token = j.token; S.who = who;
+      try { sessionStorage.setItem('sajc_gate_token', j.token);
+            sessionStorage.setItem('sajc_gate_who', who); } catch(e){}
+      document.getElementById('pw').value = '';
+      bootstrap(false);
+    })
+    .catch(function(){
+      b.disabled = false; b.textContent = 'Sign in';
+      say('mLogin', GAS_URL.indexOf('PASTE_YOUR') === 0
+        ? 'This page has not been connected yet — the deployment URL is still the placeholder in gate.html.'
+        : 'Could not reach the server. Check your connection.');
+    });
+}
+function signOut(why){
+  S.token=null; S.students=[]; S.today={}; S.recent=[]; S.done=0; HISTORY=[];
+  try { sessionStorage.removeItem('sajc_gate_token');
+        sessionStorage.removeItem('sajc_gate_who'); } catch(e){}
+  document.getElementById('hdrSub').textContent='';
+  go('login', true);
+  if (why) say('mLogin', why);
+}
+
+/* ── the one big call ───────────────────────────────────────────────── */
+function bootstrap(force){
+  go('loading');
+  document.getElementById('loadMsg').textContent = force ? 'Re-reading the roster' : 'Fetching the roster';
+  post(force ? 'refresh' : 'bootstrap', {}).then(function(j){
+    if (!j.ok) { signOut(j.error); return; }
+    S.students = j.students||[]; S.today = j.today||{};
+    S.cfg = j.config||S.cfg; S.loadedAt = j.serverTime||'';
+    document.getElementById('hdrSub').textContent = '· ' + S.who;
+    HISTORY = [];
+    go('home', true);
+  }).catch(function(e){ go('home', true); say('mHome', e.message); });
+}
+function refreshAll(){ bootstrap(true); }
+
+function paintHome(){
+  document.getElementById('homeEyebrow').textContent = dateLine();
+  document.getElementById('homeStats').textContent = S.done
+    ? S.done + (S.done===1 ? ' recorded so far.' : ' recorded so far.')
+    : 'Nothing recorded yet.';
+  document.getElementById('loadedAt').textContent = S.loadedAt ? 'Roster loaded at ' + S.loadedAt : '';
+
+  var wrap = document.getElementById('recentWrap'), list = document.getElementById('recentList');
+  if (!S.recent.length) { wrap.style.display='none'; return; }
+  wrap.style.display='block'; list.innerHTML='';
+  S.recent.forEach(function(r){
+    var b = document.createElement('button');
+    b.className='choice';
+    b.innerHTML='<span class="key">✕</span><span class="txt"><b></b><span></span></span>';
+    b.querySelector('b').textContent = r.name;
+    b.querySelector('.txt span').textContent = r.cls + ' · ' + r.time +
+      (r.counts===2 ? ' · counted twice' : '');
+    b.onclick = function(){ removeRecent(r.entryId); };
+    list.appendChild(b);
+  });
+}
+function removeRecent(entryId){
+  if (!confirm('Remove that entry from the record?')) return;
+  post('undo',{entryId:entryId}).then(function(j){
+    if (!j.ok) { say('mHome', j.error); return; }
+    S.recent = S.recent.filter(function(r){ return r.entryId!==entryId; });
+    S.done = Math.max(0, S.done-1);
+    say('mHome','Removed.','ok'); paintHome();
+  }).catch(function(e){ say('mHome', e.message); });
+}
+
+/* ── matching, all local ──────────────────────────────────────────────
+   score = 0.72 x word overlap + 0.28 x normalised Levenshtein.
+
+   Token sets are DE-DUPLICATED before the overlap is counted, so a name
+   containing the same word twice — "XUAN XUAN" — cannot score as two
+   separate matches and float above a name that genuinely matches twice.
+   ─────────────────────────────────────────────────────────────────── */
+function norm(s){ return String(s||'').toUpperCase().replace(/[(),.'’\-]/g,' ').replace(/\s+/g,' ').trim(); }
+function tokens(s){ return norm(s).split(' ').filter(Boolean); }
+function uniqueTokens(s){
+  var seen={}, out=[];
+  tokens(s).forEach(function(t){ if (!seen[t]) { seen[t]=1; out.push(t); } });
+  return out;
+}
+function lev(a,b){
+  if (a===b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  var prev=[],cur=[],i,j;
+  for (j=0;j<=b.length;j++) prev[j]=j;
+  for (i=1;i<=a.length;i++){
+    cur[0]=i;
+    for (j=1;j<=b.length;j++)
+      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+    for (j=0;j<=b.length;j++) prev[j]=cur[j];
+  }
+  return prev[b.length];
+}
+function wordish(a,b){ return a.indexOf(b)===0 || b.indexOf(a)===0; }
+function score(q,name){
+  var nq=norm(q), nn=norm(name);
+  if (!nq||!nn) return 0;
+  var qa=uniqueTokens(nq), na=uniqueTokens(nn);
+  if (!qa.length) return 0;
+  var hits=0;
+  qa.forEach(function(w){ if (na.some(function(x){ return wordish(x,w); })) hits++; });
+  var maxLen=Math.max(nq.length,nn.length)||1;
+  return (hits/qa.length)*0.72 + (1-lev(nq,nn)/maxLen)*0.28;
+}
+function search(q,limit){
+  var nq=norm(q);
+  if (nq.length<2) return [];
+  var isClass=/^\d\d[A-Z]\d\d$/.test(nq), out=[];
+  for (var i=0;i<S.students.length;i++){
+    var st=S.students[i];
+    if (isClass){ if (norm(st[2])===nq) out.push({st:st,pct:1}); continue; }
+    var sc=score(nq,st[1]);
+    if (sc>0.12) out.push({st:st,pct:sc});
+  }
+  out.sort(function(a,b){ return b.pct-a.pct || String(a.st[1]).localeCompare(String(b.st[1])); });
+  return out.slice(0, limit||8);
+}
+
+/* ── THE THIRD TEST ───────────────────────────────────────────────────
+   Score and margin are not enough, and this was found by testing rather
+   than by reasoning.
+
+   A partial read of "CHLOE TAN XUAN" scored 0.153 clear of second place —
+   over the 0.15 margin — and auto-advanced to CHLOE TAN XUAN XUAN over
+   CHLOE TAN XUAN LE. That is a coin flip presented as confidence, and it is
+   exactly what the scoring cannot see: it has no concept of WHICH words
+   matter.
+
+   So there is a third test. THE WORDS ACTUALLY READ MUST ACCOUNT FOR THE
+   TOP TWO CANDIDATES DIFFERENTLY. "CHLOE TAN XUAN" explains both equally —
+   three tokens matched, one candidate token left over on each — so it asks.
+   "CHLOE TAN XUAN XUAN" explains the first completely and leaves a spare
+   token against the second, so it advances.
+
+   The same rule stops a bare "CAYDEN NG" guessing between three of them.
+   The 0.72 and 0.15 thresholds are unchanged.
+   ─────────────────────────────────────────────────────────────────── */
+function coverage(queryTokens, name){
+  var cand = tokens(name).slice();
+  var used = [], leftover = 0;
+  queryTokens.forEach(function(qt){
+    for (var i=0;i<cand.length;i++){
+      if (cand[i] !== null && wordish(cand[i], qt)) { used.push(cand[i]); cand[i]=null; return; }
+    }
+    leftover++;
+  });
+  var missing = cand.filter(function(c){ return c !== null; }).length;
+  used.sort();
+  return used.join('+') + '|left' + leftover + '|miss' + missing;
+}
+function distinguishes(queryText, aName, bName){
+  if (!bName) return true;                      // only one candidate; nothing to confuse
+  var qt = tokens(queryText);
+  if (!qt.length) return false;
+  return coverage(qt, aName) !== coverage(qt, bName);
+}
+
+function onSearch(){
+  var q=document.getElementById('q').value;
+  var hits=search(q,8), box=document.getElementById('hits');
+  box.innerHTML=''; say('mType','');
+  if (!q.trim()) return;
+  if (!hits.length){
+    var p=document.createElement('p'); p.className='lede'; p.textContent='Nobody matches that.';
+    box.appendChild(p);
+    var b=document.createElement('button');
+    b.className='btn quiet wide'; b.textContent='Record anyway — not in the roster yet';
+    b.onclick=function(){ recordAnyway(q.trim()); };
+    box.appendChild(b);
+    return;
+  }
+  hits.forEach(function(h,i){ box.appendChild(hitButton(h.st, i + 1)); });
+}
+function hitButton(st, key){
+  var b=document.createElement('button');
+  b.className='choice';
+  var already=S.today[st[0]]||[];
+  b.innerHTML='<span class="key"></span><span class="txt"><b></b><span></span></span>' +
+    (already.length ? '<span class="flag">Already today</span>' : '');
+  b.querySelector('.key').textContent = key ? String(key) : '·';
+  b.querySelector('b').textContent = st[1];
+  b.querySelector('.txt span').textContent = st[2];
+  b.onclick=function(){ chooseStudent(st); };
+  return b;
+}
+
+/* ── the loop ───────────────────────────────────────────────────────── */
+function goScan(){ go('find'); startCamera(); }
+function leaveScan(){ stopCamera(); go('home', true); }
+function goType(){ stopCamera(); go('type'); setTimeout(function(){ document.getElementById('q').focus(); },160); }
+function nextStudent(){ S.student=null; HISTORY=[]; go('find'); startCamera(); }
+
+function chooseStudent(st){
+  S.student={id:st[0],name:st[1],cls:st[2]};
+  showConfirm();
+}
+function recordAnyway(typed){
+  if (!confirm('Record "'+typed+'" without a Student ID?\n\nUse this only for a student who genuinely is not in the Master Database yet — a transfer whose roster import has not run. It shows red in the sheet so it can be linked up later.')) return;
+  var cls = prompt('Their class, if you know it:','')||'';
+  S.student={id:'',name:typed.toUpperCase(),cls:cls.toUpperCase().trim()};
+  showConfirm();
+}
+function keyFor(s){ return s.id || ('~'+s.cls+'|'+s.name); }
+function showConfirm(){
+  var s=S.student;
+  document.getElementById('cWho').textContent = 'Student No. ' + (S.done + 1);
+  document.getElementById('cName').textContent = s.name;
+  document.getElementById('cCls').textContent = s.cls;
+  var already = S.today[keyFor(s)] || [];
+  if (already.length){
+    say('mConfirm', 'Already recorded today at ' + already.map(function(a){ return a.time; }).join(', ') +
+        '. A second scan inside ' + S.cfg.cooldown + ' minutes is refused.', 'warn');
+  } else {
+    say('mConfirm','');
+  }
+  go('confirm');
+}
+
+function record(){
+  var s=S.student, b=document.getElementById('btnRecord');
+  b.disabled=true; b.textContent='Saving…';
+  post('logScan',{ studentId:s.id, name:s.name, cls:s.cls, by:S.who })
+    .then(function(j){
+      b.disabled=false; b.textContent='Record the late';
+      if (!j.ok){ say('mConfirm', j.error, j.duplicate ? 'warn' : 'err'); return; }
+
+      var key=keyFor(s);
+      if (!S.today[key]) S.today[key]=[];
+      S.today[key].push({status:'LATE', time:j.time, entryId:j.entryId});
+
+      S.lastEntry={entryId:j.entryId};
+      S.recent.unshift({entryId:j.entryId,name:s.name,cls:s.cls,time:j.time,counts:j.counts});
+      S.recent=S.recent.slice(0,10); S.done++;
+
+      document.getElementById('dWhat').textContent =
+        s.name + ' · ' + s.cls + ' · ' + j.time +
+        (j.doubleLate ? ' — counted as two, past the cutoff' : '');
+      say('mDone', j.noTerm
+        ? 'That date falls outside every term in the sheet — a school holiday, or the Terms tab needs this year\'s dates. It is recorded, but it counts toward no term.'
+        : '', 'warn');
+      document.getElementById('btnUndo').style.display='block';
+      go('done');
+    })
+    .catch(function(e){ b.disabled=false; b.textContent='Record the late'; say('mConfirm', e.message); });
+}
+function undoLast(){
+  if (!S.lastEntry) return;
+  var entry=S.lastEntry;
+  post('undo',{entryId:entry.entryId}).then(function(j){
+    if (!j.ok){ alert(j.error); return; }
+    S.recent=S.recent.filter(function(r){ return r.entryId!==entry.entryId; });
+    S.lastEntry=null; S.done=Math.max(0,S.done-1);
+    document.getElementById('btnUndo').style.display='none';
+    document.getElementById('dWhat').textContent='Removed. Nothing was recorded for this student.';
+  }).catch(function(e){ alert(e.message); });
+}
+
+/* ── the card scanner ───────────────────────────────────────────────────
+   The guide box is 86% x 72% of a 4:3 viewfinder — 1.593:1, against a real
+   ID card's 1.585:1. The photo is CROPPED to that box before being sent for
+   reading, which matters more than it looks: OCR given a whole room performs
+   far worse than OCR given just a card.
+   ───────────────────────────────────────────────────────────────────── */
+var CARD = { x:.07, y:.14, w:.86, h:.72 };
+var stream=null;
+
+function startCamera(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    say('mScan','This browser will not give the page a camera. Type the name instead.','warn'); return;
+  }
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment',
+      width:{ideal:1920}, height:{ideal:1440} } })
+    .then(function(st){ stream=st; var v=document.getElementById('cam'); v.srcObject=st; v.play(); })
+    .catch(function(){
+      say('mScan','No camera access. Check the browser has permission, or type the name instead.','warn');
+    });
+}
+function stopCamera(){
+  if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
+  var v=document.getElementById('cam'); if (v) v.srcObject=null;
+  var busy=document.getElementById('vfBusy'); if (busy) busy.classList.remove('on');
+  var btn=document.getElementById('btnShot'); if (btn) btn.disabled=false;
+}
+
+/** Crop the live frame down to just what is inside the guide box. */
+function croppedCard(){
+  var v=document.getElementById('cam'), c=document.getElementById('shot');
+  var nw=v.videoWidth, nh=v.videoHeight;
+  var bw=v.clientWidth, bh=v.clientHeight;
+  if (!nw || !bw) return null;
+
+  // object-fit:cover means part of the frame is off-screen; work out what is visible
+  var na=nw/nh, ba=bw/bh, visW, visH, visX, visY;
+  if (na > ba){ visH=nh; visW=visH*ba; visY=0; visX=(nw-visW)/2; }
+  else        { visW=nw; visH=visW/ba; visX=0; visY=(nh-visH)/2; }
+
+  var cx=Math.round(visX+visW*CARD.x), cy=Math.round(visY+visH*CARD.y);
+  var cw=Math.round(visW*CARD.w),      ch=Math.round(visH*CARD.h);
+
+  var MAX=1200, scale=Math.min(1, MAX/Math.max(cw,ch));
+  c.width=Math.round(cw*scale); c.height=Math.round(ch*scale);
+  c.getContext('2d').drawImage(v, cx, cy, cw, ch, 0, 0, c.width, c.height);
+  return c;
+}
+
+function capture(){
+  var c=croppedCard();
+  if (!c){ say('mScan','The camera is not ready yet — give it a second.','warn'); return; }
+  var b64=c.toDataURL('image/jpeg',.85).split(',')[1];
+  var btn=document.getElementById('btnShot'), busy=document.getElementById('vfBusy');
+  btn.disabled=true; busy.classList.add('on'); say('mScan','');
+  post('ocr',{base64:b64}).then(function(j){
+    btn.disabled=false; busy.classList.remove('on');
+    if (!j.ok){ say('mScan', j.error, 'warn'); return; }
+    stopCamera();
+    handleOcr(j.text||'');
+  }).catch(function(e){ btn.disabled=false; busy.classList.remove('on'); say('mScan', e.message); });
+}
+
+/**
+ * Auto-advance needs THREE things, not two: a good enough score, a clear
+ * enough margin, and a read that actually tells the top two apart. It never
+ * guesses.
+ */
+function handleOcr(text){
+  var lines=text.split(/[\n\r]+/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length>2; });
+  var best=[], seen={}, bestLine={};
+  lines.forEach(function(line){
+    search(line,5).forEach(function(h){
+      var id=h.st[0]||h.st[1];
+      if (seen[id]){
+        if (h.pct>seen[id].pct){ seen[id].pct=h.pct; bestLine[id]=line; }
+        return;
+      }
+      seen[id]={st:h.st,pct:h.pct}; bestLine[id]=line; best.push(seen[id]);
+    });
+  });
+  best.sort(function(a,b){ return b.pct-a.pct; });
+
+  if (!best.length){
+    goType();
+    document.getElementById('q').value=lines[0]||''; onSearch();
+    say('mType','Could not read a name from that. Type it instead.','warn');
+    return;
+  }
+
+  var top=best[0], second=best.length>1?best[1]:null;
+  var line=bestLine[top.st[0]||top.st[1]] || lines.join(' ');
+  var goodEnough = top.pct >= S.cfg.minScore;
+  var clearEnough = !second || (top.pct - second.pct) >= S.cfg.minMargin;
+  var tellsApart = distinguishes(line, top.st[1], second ? second.st[1] : '');
+
+  if (goodEnough && clearEnough && tellsApart){ chooseStudent(top.st); return; }
+
+  S.candidates = best.slice(0,6);
+  var box=document.getElementById('matchList'); box.innerHTML='';
+  S.candidates.forEach(function(h,i){ box.appendChild(hitButton(h.st, i + 1)); });
+  say('mMatch', (goodEnough && clearEnough && !tellsApart)
+    ? 'What was read fits more than one of these equally well. Pick the right one.'
+    : 'Not certain enough to pick one. Choose from these, or type the name.', 'warn');
+  go('match');
+}
+
+/* ── keyboard: ENTER ONLY ─────────────────────────────────────────────
+   Nothing else is bound, deliberately. A stray keystroke at a gate in the
+   morning must never be able to record a late.
+   ─────────────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Enter') return;
+  if (current === 'login')   { doLogin(); e.preventDefault(); return; }
+  if (current === 'home')    { goScan(); e.preventDefault(); return; }
+  if (current === 'confirm') { record(); e.preventDefault(); return; }
+  if (current === 'done')    { nextStudent(); e.preventDefault(); return; }
+  if (current === 'type'){
+    var first = document.querySelector('#hits .choice');
+    if (first) { first.click(); e.preventDefault(); }
+  }
+});
+
+/* ── start ──────────────────────────────────────────────────────────── */
+document.getElementById('loginDate').textContent = dateLine();
+document.getElementById('btnUndo').style.display = 'none';
+(function resume(){
+  try {
+    var t = sessionStorage.getItem('sajc_gate_token');
+    var w = sessionStorage.getItem('sajc_gate_who');
+    if (t && w){ S.token=t; S.who=w; bootstrap(false); }
+  } catch(e){}
+})();
+</script>
+</body>
+</html>
