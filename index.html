@@ -125,6 +125,19 @@ h2{font-size:28px}
 }
 .field input::placeholder{color:#b9b3a8}
 .field input:focus{outline:none;border-bottom-color:var(--accent)}
+.field.pw{position:relative}
+.field.pw input{padding-right:46px}
+.peek{
+  position:absolute;right:0;bottom:5px;border:0;background:none;cursor:pointer;
+  padding:7px 2px;color:var(--muted);transition:color .2s var(--ease);
+}
+.peek:hover{color:var(--accent)}
+.peek svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;display:block}
+.peek .slash{opacity:0;transition:opacity .2s var(--ease)}
+.peek.showing .slash{opacity:1}
+.scanstate{font-size:13px;color:var(--muted);text-align:center;margin:0 0 14px;min-height:20px}
+.scanstate b{color:var(--accent);font-weight:600}
 
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:11px;
@@ -160,8 +173,9 @@ h2{font-size:28px}
 .choice .txt b{display:block;font-weight:600;font-size:16.5px;letter-spacing:-.01em}
 .choice .txt span{display:block;font-size:13.5px;color:var(--muted);margin-top:1px}
 .choice .flag{
-  flex:0 0 auto;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:999px;
-  background:var(--bad-tint);color:var(--bad);
+  flex:0 0 auto;max-width:38%;font-size:11.5px;font-weight:600;padding:4px 10px;
+  border-radius:9px;background:var(--bad-tint);color:var(--bad);
+  text-align:center;line-height:1.25;
 }
 .choice.sel{border-color:var(--accent);background:var(--accent-tint)}
 .choice.sel .key{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -243,9 +257,16 @@ canvas{display:none}
     <label for="who">Your name</label>
     <input id="who" autocomplete="name">
   </div>
-  <div class="field">
+  <div class="field pw">
     <label for="pw">Password</label>
     <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+    <button class="peek" id="peek" onclick="togglePw()" aria-label="Show the password">
+      <svg viewBox="0 0 24 24">
+        <path d="M1.8 12S5.4 5.2 12 5.2 22.2 12 22.2 12 18.6 18.8 12 18.8 1.8 12 1.8 12Z"/>
+        <circle cx="12" cy="12" r="3.1"/>
+        <path class="slash" d="M3.4 3.4 20.6 20.6"/>
+      </svg>
+    </button>
   </div>
   <button class="btn wide" id="btnLogin" onclick="doLogin()">Sign in</button>
 </section>
@@ -297,9 +318,10 @@ canvas{display:none}
     </div>
     <div class="vf-busy" id="vfBusy"><div class="spin"></div><p>Reading the card</p></div>
   </div>
+  <p class="scanstate" id="scanState"></p>
   <div class="shutter-row">
     <button class="btn plain" onclick="leaveScan()">Back</button>
-    <button class="shutter" id="btnShot" onclick="capture()" aria-label="Take the photo"></button>
+    <button class="shutter" id="btnShot" onclick="readNow()" aria-label="Read the card now"></button>
     <button class="btn plain" onclick="goType()">Type instead</button>
   </div>
   <canvas id="shot"></canvas>
@@ -336,7 +358,7 @@ canvas{display:none}
   <p class="sub" id="cCls"></p>
   <div id="mConfirm" style="margin-top:20px"></div>
   <div class="stack" style="margin-top:22px">
-    <button class="btn wide" id="btnRecord" onclick="record()">Record the late</button>
+    <button class="btn wide" id="btnRecord" onclick="record()">Register as Late</button>
     <button class="btn plain" onclick="goBack()">Not them</button>
   </div>
 </section>
@@ -400,7 +422,10 @@ function goBack(){
   go(prev, true);
 }
 function paint(name){
-  if (name !== 'find') stopCamera();          // never leave the camera running
+  // Never leave the camera — or the auto-scan loop — running behind a screen
+  // that is not the scanner. A loop nobody can see is a loop spending OCR
+  // calls nobody asked for.
+  if (name !== 'find'){ stopAutoScan(); stopCamera(); setScanState(''); }
   if (name === 'home') paintHome();
   if (name === 'find'){
     document.getElementById('scanWho').textContent = 'Student No. ' + (S.done + 1);
@@ -514,7 +539,7 @@ function paintHome(){
     b.innerHTML='<span class="key">✕</span><span class="txt"><b></b><span></span></span>';
     b.querySelector('b').textContent = r.name;
     b.querySelector('.txt span').textContent = r.cls + ' · ' + r.time +
-      (r.counts===2 ? ' · counted twice' : '');
+      (r.counts===2 ? ' · double late' : '');
     b.onclick = function(){ removeRecent(r.entryId); };
     list.appendChild(b);
   });
@@ -642,7 +667,7 @@ function hitButton(st, key){
   b.className='choice';
   var already=S.today[st[0]]||[];
   b.innerHTML='<span class="key"></span><span class="txt"><b></b><span></span></span>' +
-    (already.length ? '<span class="flag">Already today</span>' : '');
+    (already.length ? '<span class="flag">Late Already Registered</span>' : '');
   b.querySelector('.key').textContent = key ? String(key) : '·';
   b.querySelector('b').textContent = st[1];
   b.querySelector('.txt span').textContent = st[2];
@@ -651,10 +676,21 @@ function hitButton(st, key){
 }
 
 /* ── the loop ───────────────────────────────────────────────────────── */
-function goScan(){ go('find'); startCamera(); }
-function leaveScan(){ stopCamera(); go('home', true); }
-function goType(){ stopCamera(); go('type'); setTimeout(function(){ document.getElementById('q').focus(); },160); }
-function nextStudent(){ S.student=null; HISTORY=[]; go('find'); startCamera(); }
+function goScan(){ go('find'); startCamera(); startAutoScan(); }
+function leaveScan(){ stopAutoScan(); stopCamera(); go('home', true); }
+function goType(){ stopAutoScan(); stopCamera(); go('type'); setTimeout(function(){ document.getElementById('q').focus(); },160); }
+function nextStudent(){ S.student=null; HISTORY=[]; go('find'); startCamera(); startAutoScan(); }
+
+/** Show the password. Useful on a phone at a gate, in the dark, in a hurry. */
+function togglePw(){
+  var input = document.getElementById('pw');
+  var btn   = document.getElementById('peek');
+  var show  = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.classList.toggle('showing', !show);
+  btn.setAttribute('aria-label', show ? 'Hide the password' : 'Show the password');
+  input.focus();
+}
 
 function chooseStudent(st){
   S.student={id:st[0],name:st[1],cls:st[2]};
@@ -700,7 +736,7 @@ function record(){
 
       document.getElementById('dWhat').textContent =
         s.name + ' · ' + s.cls + ' · ' + j.time +
-        (j.doubleLate ? ' — counted as two, past the cutoff' : '');
+        (j.doubleLate ? ' — double late' : '');
       say('mDone', j.noTerm
         ? 'That date falls outside every term in the sheet — a school holiday, or the Terms tab needs this year\'s dates. It is recorded, but it counts toward no term.'
         : '', 'warn');
@@ -769,18 +805,89 @@ function croppedCard(){
   return c;
 }
 
-function capture(){
-  var c=croppedCard();
-  if (!c){ say('mScan','The camera is not ready yet — give it a second.','warn'); return; }
-  var b64=c.toDataURL('image/jpeg',.85).split(',')[1];
-  var btn=document.getElementById('btnShot'), busy=document.getElementById('vfBusy');
-  btn.disabled=true; busy.classList.add('on'); say('mScan','');
+/* ── AUTO-SCAN ─────────────────────────────────────────────────────────
+   The camera reads by itself. Hold a card up to it and the app advances on
+   its own the moment it is sure — no tapping between students, which is the
+   whole point at a gate with a queue.
+
+   IT STILL NEVER GUESSES. Auto-scan only changes WHEN a read happens; the
+   three tests that decide whether to advance are unchanged, so an uncertain
+   read stops the loop and asks rather than picking someone.
+
+   THE OCR BUDGET IS REAL, and it is why this does not read forever. Each
+   frame is a call against OCR.space's free tier, so after MAX_MISSES
+   consecutive frames with nothing recognisable in them the loop stops and
+   waits to be told to carry on. At 1.2s that is about fifteen seconds of
+   trying per student — roughly a dozen calls at worst, rather than an
+   unbounded stream while a phone sits face-up on a table.
+   ─────────────────────────────────────────────────────────────────────── */
+var SCAN_INTERVAL = 1200;
+var MAX_MISSES    = 12;
+var scanTimer = null, scanning = false, reading = false, misses = 0;
+
+function setScanState(text, strong){
+  var el = document.getElementById('scanState');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!text) return;
+  if (strong){ var b = document.createElement('b'); b.textContent = text; el.appendChild(b); }
+  else el.textContent = text;
+}
+
+function startAutoScan(){
+  stopAutoScan();
+  misses = 0;
+  scanning = true;
+  setScanState('Looking for a card');
+  scanTimer = setInterval(function(){
+    if (!scanning || reading) return;
+    readCard(true);
+  }, SCAN_INTERVAL);
+}
+function stopAutoScan(){
+  if (scanTimer){ clearInterval(scanTimer); scanTimer = null; }
+  scanning = false;
+}
+
+/** The shutter. Forces a read now, and restarts the loop if it had given up. */
+function readNow(){
+  if (reading) return;
+  if (!scanning) startAutoScan();
+  readCard(false);
+}
+
+function readCard(auto){
+  var c = croppedCard();
+  if (!c){
+    if (!auto) say('mScan','The camera is not ready yet — give it a second.','warn');
+    return;
+  }
+  var b64 = c.toDataURL('image/jpeg', .85).split(',')[1];
+  var btn = document.getElementById('btnShot'), busyEl = document.getElementById('vfBusy');
+
+  reading = true;
+  // The blocking overlay is for a deliberate tap only. Flashing it every
+  // 1.2s during auto-scan would hide the very thing being aimed at.
+  if (auto) setScanState('Reading'); else { btn.disabled = true; busyEl.classList.add('on'); }
+  say('mScan','');
+
   post('ocr',{base64:b64}).then(function(j){
-    btn.disabled=false; busy.classList.remove('on');
-    if (!j.ok){ say('mScan', j.error, 'warn'); return; }
-    stopCamera();
-    handleOcr(j.text||'');
-  }).catch(function(e){ btn.disabled=false; busy.classList.remove('on'); say('mScan', e.message); });
+    reading = false;
+    btn.disabled = false; busyEl.classList.remove('on');
+    if (!j.ok){
+      stopAutoScan();
+      setScanState('');
+      say('mScan', j.error, 'warn');
+      return;
+    }
+    handleOcr(j.text||'', auto);
+  }).catch(function(e){
+    reading = false;
+    btn.disabled = false; busyEl.classList.remove('on');
+    stopAutoScan();
+    setScanState('');
+    say('mScan', e.message);
+  });
 }
 
 /**
@@ -788,7 +895,34 @@ function capture(){
  * enough margin, and a read that actually tells the top two apart. It never
  * guesses.
  */
-function handleOcr(text){
+/* ── WHAT TO DO WITH A READ ───────────────────────────────────────────
+   Pulled out as a pure function on purpose. Auto-scan spends OCR calls, and
+   the difference between "keep looking" and "stop and ask" is what decides
+   how many — so it is worth being able to test it directly rather than
+   trusting it because the screen looked right once.
+
+   advance      sure enough to move on by itself
+   ask          stop and show the candidate list
+   keep-looking an auto read that has settled nothing yet, budget remaining
+   give-up      auto, budget spent, nothing read
+   type         a deliberate tap that read nothing — go straight to typing
+   ─────────────────────────────────────────────────────────────────── */
+function scanVerdict(r){
+  if (!r.anyMatch){
+    if (!r.auto) return 'type';
+    return (r.misses + 1 < r.maxMisses) ? 'keep-looking' : 'give-up';
+  }
+  if (r.goodEnough && r.clearEnough && r.tellsApart) return 'advance';
+
+  // A strong, unambiguous-scoring read that still cannot separate two real
+  // students will never improve by looking again — that is the point of the
+  // third test. Ask straight away rather than burning the rest of the budget.
+  var genuinelyAmbiguous = r.goodEnough && r.clearEnough && !r.tellsApart;
+  if (r.auto && !genuinelyAmbiguous && (r.misses + 1 < r.maxMisses)) return 'keep-looking';
+  return 'ask';
+}
+
+function handleOcr(text, auto){
   var lines=text.split(/[\n\r]+/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length>2; });
   var best=[], seen={}, bestLine={};
   lines.forEach(function(line){
@@ -803,25 +937,53 @@ function handleOcr(text){
   });
   best.sort(function(a,b){ return b.pct-a.pct; });
 
-  if (!best.length){
-    goType();
-    document.getElementById('q').value=lines[0]||''; onSearch();
-    say('mType','Could not read a name from that. Type it instead.','warn');
+  var top    = best.length ? best[0] : null;
+  var second = best.length > 1 ? best[1] : null;
+  var line   = top ? (bestLine[top.st[0]||top.st[1]] || lines.join(' ')) : '';
+
+  var r = {
+    anyMatch:    !!top,
+    auto:        !!auto,
+    misses:      misses,
+    maxMisses:   MAX_MISSES,
+    goodEnough:  !!top && top.pct >= S.cfg.minScore,
+    clearEnough: !!top && (!second || (top.pct - second.pct) >= S.cfg.minMargin),
+    tellsApart:  !!top && distinguishes(line, top.st[1], second ? second.st[1] : '')
+  };
+  var verdict = scanVerdict(r);
+
+  if (verdict === 'keep-looking'){
+    misses++;
+    setScanState(r.anyMatch ? 'Hold it steady' : 'Looking for a card');
     return;
   }
 
-  var top=best[0], second=best.length>1?best[1]:null;
-  var line=bestLine[top.st[0]||top.st[1]] || lines.join(' ');
-  var goodEnough = top.pct >= S.cfg.minScore;
-  var clearEnough = !second || (top.pct - second.pct) >= S.cfg.minMargin;
-  var tellsApart = distinguishes(line, top.st[1], second ? second.st[1] : '');
+  stopAutoScan();
 
-  if (goodEnough && clearEnough && tellsApart){ chooseStudent(top.st); return; }
+  if (verdict === 'give-up'){
+    setScanState('');
+    say('mScan','No name read yet. Hold the card flat inside the box, tap the button to try again, or type the name.','warn');
+    return;
+  }
+  if (verdict === 'type'){
+    stopCamera(); setScanState('');
+    goType();
+    document.getElementById('q').value = lines[0] || ''; onSearch();
+    say('mType','Could not read a name from that. Type it instead.','warn');
+    return;
+  }
+  if (verdict === 'advance'){
+    stopCamera(); setScanState('');
+    chooseStudent(top.st);
+    return;
+  }
 
+  // 'ask'
+  stopCamera(); setScanState('');
   S.candidates = best.slice(0,6);
   var box=document.getElementById('matchList'); box.innerHTML='';
   S.candidates.forEach(function(h,i){ box.appendChild(hitButton(h.st, i + 1)); });
-  say('mMatch', (goodEnough && clearEnough && !tellsApart)
+  say('mMatch', (r.goodEnough && r.clearEnough && !r.tellsApart)
     ? 'What was read fits more than one of these equally well. Pick the right one.'
     : 'Not certain enough to pick one. Choose from these, or type the name.', 'warn');
   go('match');
