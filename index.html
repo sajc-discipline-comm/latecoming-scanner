@@ -13,9 +13,13 @@
   ==========================================================================
   Built 31 July 2026 for discipline@sajc.edu.sg.
 
-  PASTE THE DEPLOYMENT URL INTO GAS_URL BELOW. Nothing else in this file
-  needs editing, ever. The thresholds, the bell times and the roster all come
-  from the spreadsheet at run time.
+  GAS_URL IS ALREADY SET to the deployment made on 31 July 2026. Nothing in
+  this file needs editing, ever — the thresholds, the bell times and the
+  roster all come from the spreadsheet at run time.
+
+  It only changes if somebody creates a NEW deployment rather than editing
+  the existing one, which issues a different address and silently strands
+  both pages on the old code.
 
   THE LOOP
   --------------------------------------------------------------------------
@@ -379,7 +383,7 @@ canvas{display:none}
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════════
-   PASTE YOUR DEPLOYMENT URL HERE — the one ending in /exec
+   THE DEPLOYMENT URL. Already set — see the note at the top of this file.
    ═══════════════════════════════════════════════════════════════════════ */
 var GAS_URL = 'https://script.google.com/macros/s/AKfycbzEviXmBucgufueIuXLJS2YnKsIiYFoT0g1F2wtMHNBAdUiwKIyFS17Bqdq7rBpGMv5FA/exec';
 
@@ -723,7 +727,7 @@ function record(){
   b.disabled=true; b.textContent='Saving…';
   post('logScan',{ studentId:s.id, name:s.name, cls:s.cls, by:S.who })
     .then(function(j){
-      b.disabled=false; b.textContent='Record the late';
+      b.disabled=false; b.textContent='Register as Late';
       if (!j.ok){ say('mConfirm', j.error, j.duplicate ? 'warn' : 'err'); return; }
 
       var key=keyFor(s);
@@ -743,7 +747,7 @@ function record(){
       document.getElementById('btnUndo').style.display='block';
       go('done');
     })
-    .catch(function(e){ b.disabled=false; b.textContent='Record the late'; say('mConfirm', e.message); });
+    .catch(function(e){ b.disabled=false; b.textContent='Register as Late'; say('mConfirm', e.message); });
 }
 function undoLast(){
   if (!S.lastEntry) return;
