@@ -467,7 +467,40 @@ function say(where, text, kind){
 }
 
 /* ── server ─────────────────────────────────────────────────────────── */
+/* ── RETRY, WITH THE WAIT SPREAD OUT ──────────────────────────────────────
+   Measured on 4 August 2026: requests to this deployment succeed 100% of the
+   time when nothing else is talking to it, and start failing as soon as
+   anything is — 93% with two devices, 80% with two devices both busy. The
+   fault is CONCURRENCY, not the device, the network or the browser.
+
+   That matters for how a retry is written. A fixed delay is the wrong shape
+   when the cause is collision: two clients that collide, both wait exactly
+   700ms, and collide again. So the wait GROWS and is JITTERED — a random
+   spread — which is what pulls two unlucky clients apart instead of keeping
+   them in step.
+
+   WHICH ACTIONS RETRY IS THE PART TO READ CAREFULLY. Reads and sign-ins do:
+   they change nothing, so sending one again costs a second and risks nothing.
+   logScan, logEarly and undo DO NOT, and must never be added — retrying a
+   write whose reply went missing is how one late arrival becomes two, and
+   nobody would ever notice. When a write's reply is lost the honest answer is
+   "it may have worked, go and look". */
+var RETRY_SAFE = { login:1, gateLogin:1, bootstrap:1, refresh:1, ocr:1 };
+
 function post(action, body){
+  var left = RETRY_SAFE[action] ? 3 : 0;
+  function attempt(){
+    return postOnce(action, body).catch(function(e){
+      if (left <= 0) throw e;
+      var wait = 500 * Math.pow(2, 3 - left) + Math.floor(Math.random() * 400);
+      left--;
+      return new Promise(function(r){ setTimeout(r, wait); }).then(attempt);
+    });
+  }
+  return attempt();
+}
+
+function postOnce(action, body){
   var payload = Object.assign({ action:action, token:S.token }, body||{});
   return fetch(GAS_URL, { method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
