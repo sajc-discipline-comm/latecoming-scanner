@@ -13,13 +13,20 @@
   ==========================================================================
   Built 31 July 2026 for discipline@sajc.edu.sg.
 
-  GAS_URL IS ALREADY SET to the deployment made on 31 July 2026. Nothing in
-  this file needs editing, ever — the thresholds, the bell times and the
-  roster all come from the spreadsheet at run time.
+  GAS_URL IS THE ONE LINE IN THIS FILE THAT CAN GO STALE. Everything else —
+  the thresholds, the bell times, the roster — comes from the spreadsheet at
+  run time and needs no edit here.
 
-  It only changes if somebody creates a NEW deployment rather than editing
-  the existing one, which issues a different address and silently strands
-  both pages on the old code.
+  IT CHANGES WHENEVER A NEW DEPLOYMENT IS CREATED rather than the existing one
+  edited, and a stale address is the worst-behaved failure in this system: it
+  looks exactly like a network problem, it is invisible when reading the code,
+  and it takes BOTH phone pages down at once.
+
+  That happened on 2 August 2026 — the deployment was lost and recreated at a
+  new address, and copies of this file kept the old one for a day. The URL
+  below was set on 2 August. If sign-in ever says "could not reach the
+  server", paste this address into a browser first: a healthy deployment
+  answers with a small page saying it is the backend.
 
   THE LOOP
   --------------------------------------------------------------------------
@@ -485,12 +492,20 @@ function doLogin(){
   var b = document.getElementById('btnLogin');
   b.disabled = true; b.textContent = 'Signing in…'; say('mLogin','');
   fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify({ action:'login', password:pw }) })
+    /* gateLogin, NOT login, since 3 August 2026. This page used to sign in with
+       the COMMITTEE password, which minted a committee token — so the guards
+       held a credential that opened the Hub. It now has its own password and
+       its own five-action whitelist. See ROLE_ACTIONS in WebApi.gs.
+       If this ever returns "This app has not been set up yet", the gate
+       password has not been set: Attendance → ⚙️ Setup and repair →
+       🚧 Set the gate scanner password. Do not fall back to the committee one. */
+    body:JSON.stringify({ action:'gateLogin', password:pw }) })
     .then(function(r){ return r.json(); })
     .then(function(j){
       b.disabled = false; b.textContent = 'Sign in';
       if (!j.ok) { say('mLogin', j.error || 'Could not sign in.'); return; }
       S.token = j.token; S.who = who;
+      idleStart(j.idleMinutes);
       try { sessionStorage.setItem('sajc_gate_token', j.token);
             sessionStorage.setItem('sajc_gate_who', who); } catch(e){}
       document.getElementById('pw').value = '';
@@ -503,7 +518,52 @@ function doLogin(){
         : 'Could not reach the server. Check your connection.');
     });
 }
+
+/* ── THE IDLE SIGN-OUT, ADDED 3 AUGUST 2026 ────────────────────────────────
+   This is a SHARED MACHINE in a room the public walks through. The threat is
+   not somebody guessing the password; it is the page still being signed in
+   when the person who signed in has walked away. That is the whole reason this
+   exists, and it is why the Hub does not have one — the Hub sits on somebody's
+   own laptop.
+
+   THE NUMBER COMES FROM ⚙️ Config, arriving with the token at sign-in, so it
+   can be changed in a cell rather than by re-committing this page. Blank or 0
+   turns it off, which is a real choice somebody may want on a machine that
+   nobody else can reach.
+
+   IT COUNTS INACTIVITY, NOT TIME SIGNED IN. Every touch, tap, key and scroll
+   pushes the deadline back, so it never signs out somebody mid-slip. The
+   camera does not count as activity — a scan screen left open pointing at a
+   wall is exactly the state this is here to end.
+
+   IT SAYS WHY. Landing on a sign-in screen with no explanation reads as a
+   fault, and the next thing somebody does with an app that seems to have
+   broken is stop using it. */
+var IDLE_MIN = 0, idleTimer = null;
+
+function idleStart(mins){
+  IDLE_MIN = Number(mins) || 0;
+  idleBump();
+}
+function idleBump(){
+  if (idleTimer) clearTimeout(idleTimer);
+  if (!IDLE_MIN) return;                       /* 0 or blank: switched off */
+  idleTimer = setTimeout(function(){
+    idleTimer = null;
+    if (!!!S.token) return;         /* already signed out */
+    signOut('Signed out after ' + IDLE_MIN + ' minutes without use. ' +
+            'This is a shared screen, so it does not stay open on its own.');
+  }, IDLE_MIN * 60 * 1000);
+}
+function idleStop(){ if (idleTimer) clearTimeout(idleTimer); idleTimer = null; }
+
+/* Passive listeners: this must never cost a frame on a phone mid-scan. */
+['pointerdown','keydown','touchstart','scroll','wheel'].forEach(function(ev){
+  document.addEventListener(ev, idleBump, { passive: true });
+});
+
 function signOut(why){
+  idleStop();   /* stop the clock before the screen changes */
   S.token=null; S.students=[]; S.today={}; S.recent=[]; S.done=0; HISTORY=[];
   try { sessionStorage.removeItem('sajc_gate_token');
         sessionStorage.removeItem('sajc_gate_who'); } catch(e){}
