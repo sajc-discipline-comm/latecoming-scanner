@@ -693,7 +693,15 @@ function score(q,name){
 function search(q,limit){
   var nq=norm(q);
   if (nq.length<2) return [];
-  var isClass=/^\d\d[A-Z]\d\d$/.test(nq), out=[];
+  /* WHAT COUNTS AS A CLASS CODE. Two digits then letters and digits — not the
+     rigid 26A02 shape this tested for until 6 August 2026. Headstart students
+     are named 27HS, a real class code carrying its intake year but only four
+     characters with no trailing digits, and the old pattern rejected it: typing
+     the class at the gate fell through to fuzzy NAME matching and returned
+     whoever happened to score, or nobody. It matched every other class in the
+     school, which is why nothing looked wrong. Anchored and still starting with
+     two digits, so a two-letter surname cannot become a class lookup. */
+  var isClass=/^\d\d[A-Z0-9]{1,4}$/.test(nq), out=[];
   for (var i=0;i<S.students.length;i++){
     var st=S.students[i];
     if (isClass){ if (norm(st[2])===nq) out.push({st:st,pct:1}); continue; }
@@ -708,19 +716,26 @@ function search(q,limit){
    Score and margin are not enough, and this was found by testing rather
    than by reasoning.
 
-   A partial read of "CHLOE TAN XUAN" scored 0.153 clear of second place —
-   over the 0.15 margin — and auto-advanced to CHLOE TAN XUAN XUAN over
-   CHLOE TAN XUAN LE. That is a coin flip presented as confidence, and it is
+   THE NAMES BELOW ARE INVENTED, and deliberately so — redacted 6 August
+   2026. This note originally quoted the real students the test was run
+   against, which put four names in a public repository and its whole
+   history. A comment explaining an algorithm does not need real people to
+   make its point; it needs names with the right SHAPE. These have it, and
+   nobody has to be in a code repository for it to be understood.
+
+   A partial read of "AVERY LIM HUI" scored 0.153 clear of second place —
+   over the 0.15 margin — and auto-advanced to AVERY LIM HUI HUI over
+   AVERY LIM HUI EN. That is a coin flip presented as confidence, and it is
    exactly what the scoring cannot see: it has no concept of WHICH words
    matter.
 
    So there is a third test. THE WORDS ACTUALLY READ MUST ACCOUNT FOR THE
-   TOP TWO CANDIDATES DIFFERENTLY. "CHLOE TAN XUAN" explains both equally —
+   TOP TWO CANDIDATES DIFFERENTLY. "AVERY LIM HUI" explains both equally —
    three tokens matched, one candidate token left over on each — so it asks.
-   "CHLOE TAN XUAN XUAN" explains the first completely and leaves a spare
+   "AVERY LIM HUI HUI" explains the first completely and leaves a spare
    token against the second, so it advances.
 
-   The same rule stops a bare "CAYDEN NG" guessing between three of them.
+   The same rule stops a bare "JORDAN NG" guessing between three of them.
    The 0.72 and 0.15 thresholds are unchanged.
    ─────────────────────────────────────────────────────────────────── */
 function coverage(queryTokens, name){
