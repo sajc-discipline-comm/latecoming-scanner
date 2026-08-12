@@ -539,8 +539,12 @@ function doLogin(){
       if (!j.ok) { say('mLogin', j.error || 'Could not sign in.'); return; }
       S.token = j.token; S.who = who;
       idleStart(j.idleMinutes);
+      /* THE IDLE NUMBER IS STORED TOO, added 11 August 2026. It arrives only
+         with this reply, and resume() at the foot of this file has no reply to
+         read it from — so without this, reloading left the timer disarmed. */
       try { sessionStorage.setItem('sajc_gate_token', j.token);
-            sessionStorage.setItem('sajc_gate_who', who); } catch(e){}
+            sessionStorage.setItem('sajc_gate_who', who);
+            sessionStorage.setItem('sajc_gate_idle', String(Number(j.idleMinutes) || 0)); } catch(e){}
       document.getElementById('pw').value = '';
       bootstrap(false);
     })
@@ -583,7 +587,7 @@ function idleBump(){
   if (!IDLE_MIN) return;                       /* 0 or blank: switched off */
   idleTimer = setTimeout(function(){
     idleTimer = null;
-    if (!!!S.token) return;         /* already signed out */
+    if (!S.token) return;           /* already signed out */
     signOut('Signed out after ' + IDLE_MIN + ' minutes without use. ' +
             'This is a shared screen, so it does not stay open on its own.');
   }, IDLE_MIN * 60 * 1000);
@@ -599,7 +603,8 @@ function signOut(why){
   idleStop();   /* stop the clock before the screen changes */
   S.token=null; S.students=[]; S.today={}; S.recent=[]; S.done=0; HISTORY=[];
   try { sessionStorage.removeItem('sajc_gate_token');
-        sessionStorage.removeItem('sajc_gate_who'); } catch(e){}
+        sessionStorage.removeItem('sajc_gate_who');
+        sessionStorage.removeItem('sajc_gate_idle'); } catch(e){}
   document.getElementById('hdrSub').textContent='';
   go('login', true);
   if (why) say('mLogin', why);
@@ -623,7 +628,7 @@ function refreshAll(){ bootstrap(true); }
 function paintHome(){
   document.getElementById('homeEyebrow').textContent = dateLine();
   document.getElementById('homeStats').textContent = S.done
-    ? S.done + (S.done===1 ? ' recorded so far.' : ' recorded so far.')
+    ? S.done + ' recorded so far.'
     : 'Nothing recorded yet.';
   document.getElementById('loadedAt').textContent = S.loadedAt ? 'Roster loaded at ' + S.loadedAt : '';
 
@@ -1120,11 +1125,35 @@ document.addEventListener('keydown', function(e){
 /* ── start ──────────────────────────────────────────────────────────── */
 document.getElementById('loginDate').textContent = dateLine();
 document.getElementById('btnUndo').style.display = 'none';
+/* RESUMING MUST RE-ARM THE IDLE CLOCK, not just the session.
+
+   Until 11 August 2026 this restored the token and called bootstrap(), but
+   never called idleStart(). IDLE_MIN stayed 0, idleBump() returned on its
+   first line, and the timer never armed — so a signed-in scanner that was
+   RELOADED, or reopened in a tab the browser restored, stayed signed in
+   indefinitely.
+
+   THIS IS THE PHONE ON A LANYARD. Greenslip.html had the identical bug and it
+   was fixed there on 4 August; this file was not checked at the same time,
+   which is the whole lesson. Reloading is not an unusual thing to do — it is
+   the first thing anybody tries when a page looks stuck, and a scanner at a
+   gate in the rain looks stuck often.
+
+   The number is read back from sessionStorage because it only ever arrives
+   with the gateLogin reply, and there is no reply here. If it is missing —
+   a session stored by the older version of this page, before the key existed
+   — the fallback is 30 minutes rather than 0: on a shared device, guessing at
+   a timeout is safer than guessing at none. */
 (function resume(){
   try {
     var t = sessionStorage.getItem('sajc_gate_token');
     var w = sessionStorage.getItem('sajc_gate_who');
-    if (t && w){ S.token=t; S.who=w; bootstrap(false); }
+    var m = sessionStorage.getItem('sajc_gate_idle');
+    if (t && w){
+      S.token=t; S.who=w;
+      idleStart(m === null ? 30 : Number(m) || 0);
+      bootstrap(false);
+    }
   } catch(e){}
 })();
 </script>
