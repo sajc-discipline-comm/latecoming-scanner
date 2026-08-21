@@ -782,7 +782,7 @@ function onSearch(){
 function hitButton(st, key){
   var b=document.createElement('button');
   b.className='choice';
-  var already=S.today[st[0]]||[];
+  var already=latesToday({ id: st[0], cls: st[2], name: st[1] });
   b.innerHTML='<span class="key"></span><span class="txt"><b></b><span></span></span>' +
     (already.length ? '<span class="flag">Late Already Registered</span>' : '');
   b.querySelector('.key').textContent = key ? String(key) : '·';
@@ -820,12 +820,31 @@ function recordAnyway(typed){
   showConfirm();
 }
 function keyFor(s){ return s.id || ('~'+s.cls+'|'+s.name); }
+
+/* ⚠️ LATES ONLY, AND THE FILTER IS THE POINT.
+   bootstrap's `today` map holds EVERY status recorded for a student today —
+   green slips, medical absences, anything the committee typed into the Log —
+   and every entry is labelled with its status. This page ignored the label and
+   treated any row at all as a late, so a student who had left early was flagged
+   at the gate as "Late Already Registered".
+
+   THAT IS NOT A COSMETIC FAULT. A guard who reads it skips her, and a late that
+   is never scanned is a late that never happened — the one failure this screen
+   cannot show anybody afterwards. The server was never wrong; the label was
+   there to be read. Fixed 21 August 2026.
+
+   The server-side guard in apiLogScan_ has always filtered to LATE, so nothing
+   here has ever been able to create a wrong record. What it created was a guard
+   who did not scan. */
+function latesToday(s){
+  return (S.today[keyFor(s)] || []).filter(function(a){ return a.status === 'LATE'; });
+}
 function showConfirm(){
   var s=S.student;
   document.getElementById('cWho').textContent = 'Student No. ' + (S.done + 1);
   document.getElementById('cName').textContent = s.name;
   document.getElementById('cCls').textContent = s.cls;
-  var already = S.today[keyFor(s)] || [];
+  var already = latesToday(s);
   if (already.length){
     say('mConfirm', 'Already recorded today at ' + already.map(function(a){ return a.time; }).join(', ') +
         '. A second scan inside ' + S.cfg.cooldown + ' minutes is refused.', 'warn');
