@@ -502,6 +502,25 @@ function post(action, body){
 
 function postOnce(action, body){
   var payload = Object.assign({ action:action, token:S.token }, body||{});
+  /* ── THE TEST SEAM ─────────────────────────────────────────────────────
+     The same one the Hub has had since its browser tests were written. When a
+     harness sets window.__mockApi, every call from this page goes to the REAL
+     handlers running in Node over a fake spreadsheet instead of over the
+     network — so a test can drive this screen and then assert on what landed
+     in 📋 Log.
+
+     IT IS HERE, NOT IN post(), so the retry wrapper above stays under test.
+     And it is placed AFTER the payload is built, so a test sees exactly the
+     body the network would have carried, token included.
+
+     ⚠️ doLogin() does NOT come through here — it sends its own bare fetch,
+     because it has no token yet. A harness signs in by putting a real token in
+     sessionStorage and letting resume() run, which is the path a guard's phone
+     actually takes every morning.
+
+     Added 21 August 2026, after a live bug on this page was fixed and shipped
+     with no test behind it, there being nothing to write one against. */
+  if (window.__mockApi) return window.__mockApi(action, payload);
   return fetch(GAS_URL, { method:'POST',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify(payload) })
@@ -1163,6 +1182,12 @@ document.getElementById('btnUndo').style.display = 'none';
    a session stored by the older version of this page, before the key existed
    — the fallback is 30 minutes rather than 0: on a shared device, guessing at
    a timeout is safer than guessing at none. */
+/* Exposed for the automated checks only, exactly as the live latecoming screen
+   exposes its own. Reads nothing this page does not already show, and cannot
+   sign anybody in — S.token is only ever set by doLogin or resume. */
+window.__scan = S;
+window.__scanGo = go;
+
 (function resume(){
   try {
     var t = sessionStorage.getItem('sajc_gate_token');
