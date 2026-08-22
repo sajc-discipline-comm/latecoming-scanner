@@ -838,7 +838,28 @@ function recordAnyway(typed){
   S.student={id:'',name:typed.toUpperCase(),cls:cls.toUpperCase().trim()};
   showConfirm();
 }
-function keyFor(s){ return s.id || ('~'+s.cls+'|'+s.name); }
+/* ⚠️ THE SAME KEY THE SERVER USES, AND IT HAS TO STAY THAT WAY.
+   bootstrap's `today` map is keyed by keyOf_ on the server: the Student ID, or
+   else '~' + the NORMALISED name + '|' + the class in capitals. This page looks
+   a student up in that map, so a key built any other way silently finds
+   nothing — and finding nothing here means the guard is never warned.
+
+   IT USED TO BE '~'+cls+'|'+name, RAW. Two things were wrong and both were
+   silent: the ORDER was reversed, and the name and class were used exactly as
+   typed, so "nur  aisyah" / "26s01" and "NUR AISYAH" / "26S01" were different
+   students to this page and the same student to the server.
+
+   ⚠️ CHANGED ON 22 AUGUST 2026 IN THE SAME COMMIT AS THE SERVER, deliberately.
+   Moving one side alone switches the flag off for every student without an ID.
+   If this ever needs changing again, both sides move together or neither does.
+
+   The punctuation stripped here is exactly normName_'s list in tracker/Code.js. */
+function normNameKey(s){
+  return String(s||'').toUpperCase().replace(/[(),.'’\-]/g,' ')
+           .replace(/\s+/g,' ').trim();
+}
+function keyFor(s){ return s.id || ('~' + normNameKey(s.name) + '|' +
+                                    String(s.cls||'').trim().toUpperCase()); }
 
 /* ⚠️ LATES ONLY, AND THE FILTER IS THE POINT.
    bootstrap's `today` map holds EVERY status recorded for a student today —
