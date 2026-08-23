@@ -52,7 +52,13 @@
 :root{
   --accent:#27326a; --accent-deep:#1b2450; --accent-tint:#e8eaf3;
   --paper:#f7f5f1; --raised:#fffdfa; --line:#e4ded4;
-  --ink:#1b1e2b; --muted:#6e7180;
+  --ink:#1b1e2b;
+  /* ⚠️ --muted WAS #6e7180 AND MEASURED 4.45:1 AGAINST THE PAPER. WCAG AA
+     needs 4.5, so every piece of secondary text in this app was failing, by a
+     hair, everywhere — and the same value was failing in all four front ends
+     and the Hub, because it was copied. #616472 measures 5.40:1.
+     Corrected 23 August 2026, in all five at once. */
+  --muted:#616472;
   --good:#2f6b4f; --good-tint:#e6f0ea;
   --warn:#8a5a12; --warn-tint:#f7edda;
   --bad:#9d372e;  --bad-tint:#f7e8e5;
@@ -106,7 +112,7 @@ body{
 @keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
 
 .eyebrow{
-  font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
   color:var(--muted);margin:0 0 12px;
 }
 h1,h2{
@@ -184,7 +190,7 @@ h2{font-size:28px}
 .choice .txt b{display:block;font-weight:600;font-size:16.5px;letter-spacing:-.01em}
 .choice .txt span{display:block;font-size:13.5px;color:var(--muted);margin-top:1px}
 .choice .flag{
-  flex:0 0 auto;max-width:38%;font-size:11.5px;font-weight:600;padding:4px 10px;
+  flex:0 0 auto;max-width:38%;font-size:12px;font-weight:600;padding:4px 10px;
   border-radius:9px;background:var(--bad-tint);color:var(--bad);
   text-align:center;line-height:1.25;
 }
@@ -211,7 +217,7 @@ h2{font-size:28px}
   border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 22px}
 @keyframes sp{to{transform:rotate(360deg)}}
 .hint{font-size:12.5px;color:var(--muted);margin-top:18px;text-align:center}
-.grouphead{font-size:11.5px;font-weight:600;color:var(--muted);letter-spacing:.14em;
+.grouphead{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.14em;
   text-transform:uppercase;margin:18px 0 9px}
 
 /* ── the card scanner ───────────────────────────────────────────────── */
@@ -224,7 +230,7 @@ h2{font-size:28px}
 .vf-overlay svg{position:absolute;inset:0;width:100%;height:100%}
 .vf-label,.vf-name{
   position:absolute;left:7%;width:86%;text-align:center;color:rgba(255,255,255,.92);
-  font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
   text-shadow:0 1px 5px rgba(0,0,0,.9);
 }
 .vf-label{top:5.5%}
