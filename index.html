@@ -1,1262 +1,385 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#27326a">
-<title>SAJC Latecoming</title>
+<meta name="theme-color" content="#f6f5f1">
+<title>SAJC Gate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..700,0..100,0..1&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
 <!--
-  SAJC LATECOMING — gate scanner
-  ==========================================================================
-  Built 31 July 2026 for discipline@sajc.edu.sg.
+  SAJC Gate — the page the guards use to record late arrivals.
 
-  GAS_URL IS THE ONE LINE IN THIS FILE THAT CAN GO STALE. Everything else —
-  the thresholds, the bell times, the roster — comes from the spreadsheet at
-  run time and needs no edit here.
+  THIS FILE HOLDS NO STUDENT DATA. It is code only, which is why it can sit on
+  GitHub Pages. Names come from the Google script owned by discipline@ once a
+  guard signs in, and live in this browser tab only (sessionStorage) — except
+  scans that could not be sent yet and today's short list on this phone, which
+  wait in localStorage and are cleared the next day.
 
-  IT CHANGES WHENEVER A NEW DEPLOYMENT IS CREATED rather than the existing one
-  edited, and a stale address is the worst-behaved failure in this system: it
-  looks exactly like a network problem, it is invisible when reading the code,
-  and it takes BOTH phone pages down at once.
-
-  That happened on 2 August 2026 — the deployment was lost and recreated at a
-  new address, and copies of this file kept the old one for a day. The URL
-  below was set on 2 August. If sign-in ever says "could not reach the
-  server", paste this address into a browser first: a healthy deployment
-  answers with a small page saying it is the backend.
-
-  THE LOOP
-  --------------------------------------------------------------------------
-  Sign in once, then camera -> confirm -> next. THERE IS NO VENUE STEP: it
-  stopped mattering, so it is gone from the screen and from the record. That
-  takes the loop from four screens to three.
-
-  WHERE THE DATA LIVES
-  --------------------------------------------------------------------------
-  In memory, and in sessionStorage — which the browser wipes the moment this
-  tab is closed. NEVER localStorage; the file also clears any stale
-  localStorage token left by an older build. GitHub serves this blank page;
-  every student name travels straight between Google and the phone.
-
-  WHAT THIS FILE DOES NOT DECIDE
-  --------------------------------------------------------------------------
-  Whether an arrival counts as one late or two. That is the server's, from the
-  server's clock — after 09:00, or 09:30 on a Thursday. The phone never sends
-  a weight and could not fake one.
-  ==========================================================================
+  To point it at the script, set API below to the web app address
+  (Deploy → Manage deployments → Web app URL).
 -->
 <style>
-:root{
-  --accent:#27326a; --accent-deep:#1b2450; --accent-tint:#e8eaf3;
-  --paper:#f7f5f1; --raised:#fffdfa; --line:#e4ded4;
-  --ink:#1b1e2b;
-  /* ⚠️ --muted WAS #6e7180 AND MEASURED 4.45:1 AGAINST THE PAPER. WCAG AA
-     needs 4.5, so every piece of secondary text in this app was failing, by a
-     hair, everywhere — and the same value was failing in all four front ends
-     and the Hub, because it was copied. #616472 measures 5.40:1.
-     Corrected 23 August 2026, in all five at once. */
-  --muted:#616472;
-  --good:#2f6b4f; --good-tint:#e6f0ea;
-  --warn:#8a5a12; --warn-tint:#f7edda;
-  --bad:#9d372e;  --bad-tint:#f7e8e5;
-  --ease:cubic-bezier(.22,.61,.36,1);
-
-  /* ── THE HUB'S TOKENS, SHARED ─────────────────────────────────────────
-     Added 23 August 2026. These five front ends already shared the palette —
-     it had been copied, which is how one wrong --muted came to be failing AA
-     in all of them at once. They now share the SCALE as well, so a size or a
-     corner is a decision made once rather than five times.
-
-     ⚠️ LOOK ONLY. Nothing about what any screen does, or where a control is,
-     or how big it is to a thumb: every min-height in this file is untouched
-     and the 44px floor stands. */
-
-  /* Type: the Hub's six steps, plus two the phone screens genuinely need.
-     latecoming-live is read from across a room and its 44 / 33 / 26 heading
-     hierarchy is three distinct sizes doing three jobs; folding those into
-     28 would be a legibility change dressed as a tidy-up. */
-  --t-xs:12px; --t-sm:13px; --t-md:14px; --t-lg:16px;
-  --t-xl:20px; --t-2xl:28px; --t-3xl:36px; --t-4xl:44px;
-
-  /* Space, on a 4px grid. */
-  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px;
-  --s-5:24px; --s-6:32px; --s-7:48px;
-
-  /* Two radii, down from five or six. 2px for a surface, a pill for a pill. */
-  --r:2px; --r-pill:999px;
-
-  /* Surfaces and rules. --rule is the line between two rows: the Hub's was
-     1.13:1 against the paper and effectively invisible; this measures 1.52:1. */
-  --sunk:#f1efea; --faint:#9c9a96; --rule:#cfc9bb;
-
-  /* The tier washes, named. Grooming had four of them as literals. */
-  --sev5:#FF8080; --sev4:#FFA862; --sev3:#FFD27A; --sev2:#FFF2A8;
-}
+:root{--ground:#f6f5f1;--raised:#fbfaf7;--ink:#1b1e2b;--muted:#5c6070;--line:#d9d6cd;--accent:#27326a;--on:#fff;--hi:#e3e6f2;--soft:#e7e4dc;
+  --good:#2b6349;--good-t:#e3efe7;--warn-t:#f5ecd6;--bad:#9b2c22;--bad-t:#f6e3df;--head:'Libre Caslon Display',Georgia,serif}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;overscroll-behavior:none}
-body{
-  background:var(--paper); color:var(--ink);
-  font-family:'Public Sans',system-ui,-apple-system,"Segoe UI",sans-serif;
-  font-size:var(--t-lg); line-height:1.55; letter-spacing:-.005em;
-  display:flex; flex-direction:column;
-  padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
-}
-.prog{height:2px;background:rgba(39,50,106,.10);flex:0 0 auto}
-.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .55s var(--ease)}
-.top{
-  flex:0 0 auto;padding:14px 24px 0;display:flex;align-items:center;
-  justify-content:space-between;min-height:44px;
-}
-.brand{
-  font-family:'Fraunces',Georgia,serif;
-  font-variation-settings:'opsz' 14,'SOFT' 40,'WONK' 1;
-  font-weight:600;font-size:var(--t-md);color:var(--accent);
-}
-.brand em{font-style:normal;color:var(--muted);font-weight:400}
-.back{
-  border:0;background:none;color:var(--muted);font:inherit;font-size:var(--t-md);
-  cursor:pointer;padding:6px 2px;opacity:0;pointer-events:none;transition:opacity .3s;
-}
-.back.on{opacity:1;pointer-events:auto}
-.stage{flex:1;position:relative;overflow:hidden}
-.pane{
-  position:absolute;inset:0;padding:18px 24px 34px;
-  display:flex;flex-direction:column;justify-content:center;
-  overflow-y:auto;-webkit-overflow-scrolling:touch;
-  opacity:0;transform:translateY(22px);pointer-events:none;
-  transition:opacity .42s var(--ease),transform .42s var(--ease);
-}
-.pane.on{opacity:1;transform:none;pointer-events:auto}
-.pane.out{opacity:0;transform:translateY(-16px)}
-.pane.flow{justify-content:flex-start;padding-top:10px}
-.pane.on>*{animation:rise .5s var(--ease) backwards}
-.pane.on>*:nth-child(1){animation-delay:.03s}
-.pane.on>*:nth-child(2){animation-delay:.08s}
-.pane.on>*:nth-child(3){animation-delay:.13s}
-.pane.on>*:nth-child(4){animation-delay:.18s}
-.pane.on>*:nth-child(5){animation-delay:.23s}
-.pane.on>*:nth-child(6){animation-delay:.28s}
-.pane.on>*:nth-child(7){animation-delay:.33s}
-@keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
-
-.eyebrow{
-  font-size:var(--t-xs);font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);margin:0 0 12px;
-}
-h1,h2{
-  font-family:'Fraunces',Georgia,serif;
-  font-variation-settings:'opsz' 60,'SOFT' 30,'WONK' 1;
-  font-weight:600;letter-spacing:-.018em;line-height:1.12;margin:0 0 8px;
-}
-h1{font-size:var(--t-3xl)}
-h2{font-size:var(--t-2xl)}
-.lede{color:var(--muted);font-size:var(--t-lg);margin:0 0 24px;max-width:32ch}
-.big-name{
-  font-family:'Fraunces',Georgia,serif;
-  font-variation-settings:'opsz' 90,'SOFT' 20,'WONK' 1;
-  font-weight:600;font-size:var(--t-3xl);line-height:1.07;letter-spacing:-.025em;margin:0 0 6px;
-}
-.sub{color:var(--muted);font-size:var(--t-lg);margin:0}
-
-.field{margin-bottom:20px}
-.field label{
-  display:block;font-size:var(--t-xs);font-weight:600;letter-spacing:.045em;
-  text-transform:uppercase;color:var(--muted);margin-bottom:9px;
-}
-.field input{
-  width:100%;border:0;border-bottom:2px solid var(--line);background:transparent;
-  font:inherit;font-size:var(--t-xl);padding:6px 2px 11px;color:var(--ink);
-  transition:border-color .28s var(--ease);
-}
-.field input::placeholder{color:#b9b3a8}
-.field input:focus{outline:none;border-bottom-color:var(--accent)}
-.field.pw{position:relative}
-.field.pw input{padding-right:46px}
-.peek{
-  position:absolute;right:0;bottom:5px;border:0;background:none;cursor:pointer;
-  padding:7px 2px;color:var(--muted);transition:color .2s var(--ease);
-}
-.peek:hover{color:var(--accent)}
-.peek svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;
-  stroke-linecap:round;stroke-linejoin:round;display:block}
-.peek .slash{opacity:0;transition:opacity .2s var(--ease)}
-.peek.showing .slash{opacity:1}
-.scanstate{font-size:var(--t-sm);color:var(--muted);text-align:center;margin:0 0 14px;min-height:20px}
-.scanstate b{color:var(--accent);font-weight:600}
-
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:11px;
-  border:0;border-radius:var(--r);background:var(--accent);color:#fff;
-  font:inherit;font-weight:600;font-size:var(--t-lg);padding:15px 24px;cursor:pointer;
-  box-shadow:0 1px 2px rgba(27,30,43,.14),0 6px 18px -8px rgba(39,50,106,.55);
-  transition:transform .16s var(--ease),box-shadow .22s var(--ease),background .2s;
-}
-.btn:hover{background:var(--accent-deep);transform:translateY(-1.5px)}
-.btn:active{transform:translateY(1px);box-shadow:0 1px 2px rgba(27,30,43,.16)}
-.btn:disabled{opacity:.55;transform:none;box-shadow:none;cursor:default}
-.btn.wide{width:100%}
-.btn.quiet{background:transparent;color:var(--accent);box-shadow:none;border:1.5px solid var(--line)}
-.btn.quiet:hover{background:var(--accent-tint);border-color:transparent}
-.btn.plain{background:none;color:var(--muted);box-shadow:none;padding:12px 4px;font-weight:500;
-  justify-content:center;text-align:center}
-.btn.plain:hover{color:var(--accent);background:none;transform:none}
-.stack{display:flex;flex-direction:column;gap:9px;margin-top:8px}
-
-.choice{
-  display:flex;align-items:center;gap:13px;width:100%;text-align:left;
-  padding:15px 17px;margin-bottom:9px;border:1.5px solid var(--line);
-  border-radius:var(--r);background:var(--raised);font:inherit;color:var(--ink);
-  cursor:pointer;transition:border-color .2s,background .2s,transform .16s var(--ease),box-shadow .2s;
-}
-.choice:hover{border-color:var(--accent);transform:translateX(2.5px)}
-.choice:active{transform:translateX(1px) scale(.995)}
-.choice .key{
-  flex:0 0 auto;width:27px;height:27px;border-radius:var(--r);border:1.5px solid var(--line);
-  display:grid;place-items:center;font-size:var(--t-xs);font-weight:600;color:var(--muted);transition:all .2s;
-}
-.choice .txt{flex:1;min-width:0}
-.choice .txt b{display:block;font-weight:600;font-size:var(--t-lg);letter-spacing:-.01em}
-.choice .txt span{display:block;font-size:var(--t-sm);color:var(--muted);margin-top:1px}
-.choice .flag{
-  flex:0 0 auto;max-width:38%;font-size:var(--t-xs);font-weight:600;padding:4px 10px;
-  border-radius:var(--r);background:var(--bad-tint);color:var(--bad);
-  text-align:center;line-height:1.25;
-}
-.choice.sel{border-color:var(--accent);background:var(--accent-tint)}
-.choice.sel .key{background:var(--accent);border-color:var(--accent);color:#fff}
-
-.note{padding:13px 16px;border-radius:var(--r);font-size:var(--t-md);margin-bottom:18px;
-  border-left:3px solid;line-height:1.5}
-.note.err{background:var(--bad-tint);color:var(--bad);border-color:var(--bad)}
-.note.warn{background:var(--warn-tint);color:var(--warn);border-color:var(--warn)}
-.note.ok{background:var(--good-tint);color:var(--good);border-color:var(--good)}
-
-.tick{width:74px;height:74px;border-radius:50%;background:var(--good-tint);
-  display:grid;place-items:center;margin:0 auto 20px;animation:pop .55s var(--ease) backwards .08s}
-.tick svg{width:34px;height:34px;stroke:var(--good);stroke-width:2.6;fill:none;
-  stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:32;stroke-dashoffset:32;
-  animation:draw .5s var(--ease) forwards .3s}
-@keyframes pop{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
-@keyframes draw{to{stroke-dashoffset:0}}
-.centered{text-align:center}
-.centered .lede{margin-left:auto;margin-right:auto}
-
-.spin{width:26px;height:26px;border:2.5px solid var(--line);border-top-color:var(--accent);
-  border-radius:50%;animation:sp .8s linear infinite;margin:0 auto 22px}
-@keyframes sp{to{transform:rotate(360deg)}}
-.hint{font-size:var(--t-xs);color:var(--muted);margin-top:18px;text-align:center}
-.grouphead{font-size:var(--t-xs);font-weight:600;color:var(--muted);letter-spacing:.14em;
-  text-transform:uppercase;margin:18px 0 9px}
-
-/* ── the card scanner ───────────────────────────────────────────────── */
-.viewfinder{
-  position:relative;width:100%;aspect-ratio:4/3;background:#000;
-  border-radius:var(--r);overflow:hidden;margin:4px 0 18px;
-}
-.viewfinder video{width:100%;height:100%;object-fit:cover;display:block}
-.vf-overlay{position:absolute;inset:0;pointer-events:none}
-.vf-overlay svg{position:absolute;inset:0;width:100%;height:100%}
-.vf-label,.vf-name{
-  position:absolute;left:7%;width:86%;text-align:center;color:rgba(255,255,255,.92);
-  font-size:var(--t-xs);font-weight:600;letter-spacing:.14em;text-transform:uppercase;
-  text-shadow:0 1px 5px rgba(0,0,0,.9);
-}
-.vf-label{top:5.5%}
-.vf-name{top:88.5%;color:rgba(255,255,255,.78)}
-.vf-busy{
-  position:absolute;inset:0;background:rgba(0,0,0,.78);display:none;
-  flex-direction:column;align-items:center;justify-content:center;color:#fff;
-}
-.vf-busy.on{display:flex}
-.vf-busy p{margin:0;font-size:var(--t-md);color:rgba(255,255,255,.85)}
-.shutter-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.shutter{
-  flex:0 0 auto;width:72px;height:72px;border-radius:50%;border:0;cursor:pointer;
-  background:var(--accent);box-shadow:0 0 0 5px var(--paper),0 0 0 7px var(--accent),
-    0 6px 20px -8px rgba(39,50,106,.6);
-  transition:transform .16s var(--ease),background .2s;
-}
-.shutter:hover{background:var(--accent-deep)}
-.shutter:active{transform:scale(.93)}
-.shutter:disabled{opacity:.5;cursor:default}
-.shutter-row .btn.plain{flex:1;min-width:0}
+html,body{margin:0;background:var(--ground);color:var(--ink);font-family:Inter,'Segoe UI',system-ui,sans-serif;font-size:17px;line-height:1.4}
+button,input,select{font:inherit;color:inherit}
+.top{display:flex;align-items:center;justify-content:space-between;min-height:48px;padding:6px 20px 0}
+.back{display:flex;align-items:center;gap:4px;border:0;background:none;color:var(--muted);font-size:17px;padding:8px 0;cursor:pointer}
+.back[hidden]{display:block;visibility:hidden}
+.conn{display:flex;align-items:center;gap:7px;font-size:14px;color:var(--muted)}
+.conn i{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block}
+.conn.off i{background:#c08a2b}
+.pane{display:none;padding:10px 20px 24px;min-height:calc(100dvh - 54px);flex-direction:column}
+.pane.on{display:flex;animation:fade .15s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.pane.on{animation:none}}
+h1{font-family:var(--head);font-weight:400;font-size:36px;line-height:1.1;margin:0}
+h2{font-family:var(--head);font-weight:400;font-size:30px;line-height:1.15;margin:0}
+.lede{font-size:17px;color:var(--muted);margin:6px 0 18px}
+.sp{flex:1}
+.btn{height:64px;width:100%;border-radius:10px;border:0;background:var(--accent);color:var(--on);font-size:19px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:disabled{opacity:.5}
+.btn.quiet{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
+.link{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;background:none;color:var(--muted);font-size:17px;padding:14px 0;text-decoration:underline;cursor:pointer}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.field label{font-size:15px;font-weight:600;color:var(--muted)}
+.field input,.field select{height:60px;border:1.5px solid var(--line);border-radius:10px;background:var(--raised);padding:0 16px;font-size:19px}
+.search{display:flex;align-items:center;gap:10px;height:64px;border:1.5px solid var(--line);border-radius:10px;background:var(--raised);padding:0 7px 0 16px;color:var(--muted);font-size:19px;cursor:text}
+.search.focus{border:2px solid var(--accent);color:var(--ink)}
+.search input{flex:1;border:0;background:none;outline:none;font-size:20px;min-width:0;text-transform:uppercase}
+.search .cam{width:50px;height:50px;border-radius:8px;border:0;background:var(--accent);color:var(--on);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer}
+.eyebrow{font-size:14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:26px 0 4px}
+.rec{padding:12px 0;border-top:1px solid var(--line)}
+.rec b{display:block;font-size:19px;line-height:1.3}
+.rec span{font-size:16px;color:var(--muted)}
+.rec .wait{color:#8a6216}
+.foot{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:14px 0 6px;font-size:17px}
+.foot button{border:0;background:none;color:var(--muted);display:flex;align-items:center;gap:6px;padding:4px 0;cursor:pointer;font-size:17px}
+.choice{display:block;width:100%;text-align:left;padding:16px;border:1.5px solid var(--line);border-radius:10px;background:none;margin-bottom:10px;cursor:pointer}
+.choice b{display:block;font-size:20px}
+.choice span{font-size:16px;color:var(--muted)}
+.choice.best{border-color:var(--accent);background:var(--hi)}
+.choice .flag{display:block;margin-top:4px;font-size:14px;color:#8a6216}
+.hit{display:block;width:100%;text-align:left;padding:13px 0;border:0;border-top:1px solid var(--line);background:none;cursor:pointer}
+.hit b{display:block;font-size:19px}
+.hit span{font-size:16px;color:var(--muted)}
+.big{font-family:var(--head);font-size:42px;line-height:1.08;margin:10px 0 0;word-break:break-word}
+.cls{font-size:20px;color:var(--muted);margin-top:6px}
+.time{margin-top:22px;padding:16px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.time small{display:block;font-size:15px;color:var(--muted)}
+.time strong{display:block;font-size:40px;font-weight:600;line-height:1.15;font-variant-numeric:tabular-nums}
+.tick{display:flex;align-items:center;gap:12px;margin-top:20px}
+.tick span{width:52px;height:52px;border-radius:50%;background:var(--good-t);color:var(--good);display:flex;align-items:center;justify-content:center}
+.tick h2{font-size:34px}
+.msg{margin:10px 0;padding:12px 14px;border-radius:8px;font-size:16px;background:var(--warn-t)}
+.msg.bad{background:var(--bad-t)}
+.msg:empty{display:none}
+/* camera */
+.vf{position:relative;margin:14px -20px 0;background:#0d0f15;aspect-ratio:3/4;max-height:52dvh;overflow:hidden}
+.vf video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.vf .shade{position:absolute;inset:0;pointer-events:none}
+.vf .band{position:absolute;border:3px solid #fff;border-radius:6px;box-shadow:0 0 0 9999px rgba(0,0,0,.55)}
+.vf .bandlab{position:absolute;color:#fff;font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.vf .note{position:absolute;left:0;right:0;bottom:12px;text-align:center;color:#fff;font-size:15px}
+.shut{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:18px 6px 0}
+.shut .link{justify-content:flex-start;padding:0;width:auto}
+.shutter{width:76px;height:76px;border-radius:50%;border:5px solid var(--ink);background:transparent;cursor:pointer}
+.shutter:disabled{opacity:.4}
+.state{text-align:right;font-size:15px;color:var(--muted)}
 canvas{display:none}
 </style>
 </head>
 <body>
+<div class="top"><button class="back" id="back" hidden onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>Back</button><span class="conn" id="conn"><i></i><span>Connected</span></span></div>
 
-<div class="prog"><i id="bar"></i></div>
-<div class="top">
-  <div class="brand">SAJC Discipline Committee <em id="hdrSub"></em></div>
-  <button class="back" id="back" onclick="goBack()">← Back</button>
-</div>
-
-<div class="stage">
-
-<!-- 1 · LOGIN -->
 <section class="pane on" id="pLogin">
-  <p class="eyebrow" id="loginDate"></p>
-  <h1>Latecoming</h1>
-  <div id="mLogin"></div>
-  <div class="field">
-    <label for="who">Your name</label>
-    <input id="who" autocomplete="name">
-  </div>
-  <div class="field pw">
-    <label for="pw">Password</label>
-    <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
-    <button class="peek" id="peek" onclick="togglePw()" aria-label="Show the password">
-      <svg viewBox="0 0 24 24">
-        <path d="M1.8 12S5.4 5.2 12 5.2 22.2 12 22.2 12 18.6 18.8 12 18.8 1.8 12 1.8 12Z"/>
-        <circle cx="12" cy="12" r="3.1"/>
-        <path class="slash" d="M3.4 3.4 20.6 20.6"/>
-      </svg>
-    </button>
-  </div>
-  <button class="btn wide" id="btnLogin" onclick="doLogin()">Sign in</button>
+  <h1>Late arrivals</h1>
+  <p class="lede" id="loginDate"></p>
+  <div class="msg" id="mLogin"></div>
+  <div class="field"><label for="gate">Gate</label><select id="gate"><option>Security Post</option><option>JB Bridge</option></select></div>
+  <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <button class="btn" id="btnLogin" onclick="doLogin()">Sign in</button>
 </section>
 
-<!-- 2 · LOADING -->
-<section class="pane centered" id="pLoading">
-  <div class="spin"></div>
-  <h2 id="loadMsg">Fetching the roster</h2>
-  <p class="lede">This happens once. Everything after it is instant.</p>
-</section>
-
-<!-- 3 · HOME -->
 <section class="pane" id="pHome">
-  <p class="eyebrow" id="homeEyebrow"></p>
-  <h1>Ready.</h1>
-  <p class="lede" id="homeStats"></p>
-  <div id="mHome"></div>
-  <div class="stack">
-    <button class="btn wide" onclick="goScan()">📷 Scan a card</button>
-    <button class="btn quiet wide" onclick="goType()">Type a name</button>
-  </div>
-  <div id="recentWrap" style="display:none;margin-top:26px">
-    <p class="eyebrow">Recorded this session</p>
-    <div id="recentList"></div>
-  </div>
-  <div class="stack" style="margin-top:22px">
-    <button class="btn plain" onclick="refreshAll()">↻ Refresh the roster</button>
-    <button class="btn plain" onclick="signOut()">Sign out</button>
-  </div>
-  <p class="hint" id="loadedAt"></p>
+  <h1>Late arrivals</h1>
+  <p class="lede" id="homeCount"></p>
+  <div class="msg" id="mHome"></div>
+  <div class="search" onclick="goType()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><span style="flex:1">Type a name</span>
+    <button class="cam" aria-label="Scan a card" onclick="event.stopPropagation();goScan()"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
+  <div id="recWrap"><p class="eyebrow">Recorded today</p><div id="recList"></div></div>
+  <div class="sp"></div>
+  <div class="foot"><button id="undoLast" onclick="undoLast()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg>Undo last</button><button onclick="signOut()">Sign out</button></div>
 </section>
 
-<!-- 4 · SCAN -->
-<section class="pane flow" id="pFind">
-  <p class="eyebrow" id="scanWho"></p>
-  <h2>Scan their card</h2>
-  <div id="mScan"></div>
-  <div class="viewfinder">
-    <video id="cam" playsinline muted autoplay></video>
-    <div class="vf-overlay">
-      <svg viewBox="0 0 100 75" preserveAspectRatio="none">
-        <path d="M7,10.5 L7,21 M7,10.5 L20,10.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
-        <path d="M93,10.5 L93,21 M93,10.5 L80,10.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
-        <path d="M7,64.5 L7,54 M7,64.5 L20,64.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
-        <path d="M93,64.5 L93,54 M93,64.5 L80,64.5" stroke="rgba(255,255,255,.9)" stroke-width=".7" fill="none"/>
-      </svg>
-      <div class="vf-label">Fit the card to the box</div>
-      <div class="vf-name">Name must be inside</div>
-    </div>
-    <div class="vf-busy" id="vfBusy"><div class="spin"></div><p>Reading the card</p></div>
-  </div>
-  <p class="scanstate" id="scanState"></p>
-  <div class="shutter-row">
-    <button class="btn plain" onclick="leaveScan()">Back</button>
-    <button class="shutter" id="btnShot" onclick="readNow()" aria-label="Read the card now"></button>
-    <button class="btn plain" onclick="goType()">Type instead</button>
-  </div>
+<section class="pane" id="pCam">
+  <h2>Scan the card</h2>
+  <p class="lede" style="margin-bottom:0">Put the name in the white box.</p>
+  <div class="msg" id="mCam"></div>
+  <div class="vf" id="vf"><video id="cam" playsinline muted autoplay></video><div class="band" id="band"></div><div class="bandlab" id="bandlab">Name only</div><div class="note">Only what is inside the box is sent</div></div>
+  <div class="shut"><button class="link" onclick="goType()">Type instead</button><button class="shutter" id="btnShot" aria-label="Read the card now" onclick="readNow()"></button><span class="state" id="scanState"></span></div>
   <canvas id="shot"></canvas>
 </section>
 
-<!-- 5 · TYPE -->
-<section class="pane flow" id="pType">
-  <p class="eyebrow" id="typeWho"></p>
-  <h2>Find the student</h2>
-  <div id="mType"></div>
-  <div class="field" style="margin-top:12px">
-    <label for="q">Type any part of the name, or a class</label>
-    <input id="q" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="onSearch()">
-  </div>
-  <div id="hits"></div>
+<section class="pane" id="pPick">
+  <h2>Which student?</h2>
+  <p class="lede">Tap the right one.</p>
+  <div class="msg" id="mPick"></div>
+  <div id="pickList"></div>
+  <button class="link" onclick="goType(true)">Not here — type the name</button>
 </section>
 
-<!-- 6 · MATCH -->
-<section class="pane flow" id="pMatch">
-  <p class="eyebrow">From the card</p>
-  <h2>Which one?</h2>
-  <div id="mMatch"></div>
-  <div id="matchList"></div>
-  <div class="stack" style="margin-top:14px">
-    <button class="btn plain" onclick="goType()">None of these — type the name</button>
-    <button class="btn plain" onclick="goScan()">Scan again</button>
-  </div>
+<section class="pane" id="pType">
+  <div class="search focus"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><input id="q" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Name or class" oninput="onSearch()"></div>
+  <div class="msg" id="mType"></div>
+  <div id="hits" style="margin-top:10px"></div>
 </section>
 
-<!-- 7 · CONFIRM -->
 <section class="pane" id="pConfirm">
-  <p class="eyebrow" id="cWho"></p>
-  <p class="big-name" id="cName"></p>
-  <p class="sub" id="cCls"></p>
-  <div id="mConfirm" style="margin-top:20px"></div>
-  <div class="stack" style="margin-top:22px">
-    <button class="btn wide" id="btnRecord" onclick="record()">Register as Late</button>
-    <button class="btn plain" onclick="goBack()">Not them</button>
-  </div>
+  <p class="big" id="cName"></p>
+  <p class="cls" id="cCls"></p>
+  <div class="time"><small>Time of arrival</small><strong id="cTime"></strong></div>
+  <div class="msg" id="mConfirm"></div>
+  <div class="sp"></div>
+  <button class="btn" id="btnRecord" onclick="record()">Record as late</button>
+  <button class="link" onclick="goBack()">Not this student</button>
 </section>
 
-<!-- 8 · DONE -->
-<section class="pane centered" id="pDone">
-  <div class="tick"><svg viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 7"/></svg></div>
-  <h2>Saved</h2>
-  <p class="lede" id="dWhat"></p>
-  <div id="mDone"></div>
-  <div class="stack">
-    <button class="btn wide" onclick="nextStudent()">Next student</button>
-    <button class="btn plain" id="btnUndo" onclick="undoLast()">Undo — that was the wrong student</button>
-  </div>
+<section class="pane" id="pSaved">
+  <div class="tick"><span><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><h2>Saved</h2></div>
+  <p class="big" id="sName" style="font-size:34px;margin-top:22px"></p>
+  <p class="cls" id="sCls"></p>
+  <div class="time"><small>Time of arrival</small><strong id="sTime"></strong></div>
+  <div class="msg" id="mSaved"></div>
+  <div class="sp"></div>
+  <button class="btn" onclick="nextStudent()">Next student</button>
+  <button class="link" id="undoNow" onclick="undoThis()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12"/></svg>Undo — wrong student</button>
 </section>
-
-</div>
 
 <script>
-/* ═══════════════════════════════════════════════════════════════════════
-   THE DEPLOYMENT URL. Already set — see the note at the top of this file.
-   ═══════════════════════════════════════════════════════════════════════ */
-var GAS_URL = 'https://script.google.com/macros/s/AKfycbxm68iLB0wBy-goORwxBAK3ZySAGT4LHV-R4KfB00PGdXL8fu569vrvvUUpzxF8nrhyIw/exec';
+/* ── setup ─────────────────────────────────────────────────────────────── */
+var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← paste the web app address here
+(function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
+var CFG = { minScore: .72, minMargin: .15, undoSeconds: 30, scanEvery: 1200, maxMisses: 12, flushEvery: 15000 };
+/* Where the name sits on an MOE student card, as a fraction of the card: just the line under the crest, left of the photo.
+   The NRIC is the line directly below, so the box is deliberately tight. */
+var CARD = { w: .86 };                                  // the card fills 86% of the viewfinder width
+var BAND = { x: .03, y: .185, w: .60, h: .115 };       // name line, relative to the card
+var S = { token: '', names: [], hist: [], current: null, last: null, cands: [] };
+var LS = { get: function (k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }, set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } };
+var device = LS.get('gate.device', ''); if (!device) { device = 'P' + Math.random().toString(36).slice(2, 8).toUpperCase(); LS.set('gate.device', device); }
 
-/* Any token an older build left in localStorage is wiped on load. Nothing
-   here ever writes to it. */
-try { localStorage.removeItem('gt_token'); localStorage.removeItem('sajc_token'); } catch(e){}
+function $(id) { return document.getElementById(id); }
+function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function hhmm(d) { d = d || new Date(); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function say(id, t, bad) { var el = $(id); if (!el) return; el.textContent = t || ''; el.className = 'msg' + (bad ? ' bad' : ''); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
-var S = {
-  token:null, who:'', students:[], today:{},
-  cfg:{minScore:.72,minMargin:.15,cooldown:15},
-  student:null, lastEntry:null, recent:[], done:0, loadedAt:'', candidates:[]
-};
-
-var PANES = { login:'pLogin', loading:'pLoading', home:'pHome', find:'pFind',
-              type:'pType', match:'pMatch', confirm:'pConfirm', done:'pDone' };
-var PROGRESS = { login:0, loading:.08, home:0, find:.3, type:.3, match:.55,
-                 confirm:.78, done:1 };
-var HISTORY = [];
-var current = 'login';
-
-/* ── transitions ────────────────────────────────────────────────────── */
-function go(name, isBack){
-  if (name === current) { paint(name); return; }
-  var cur = document.getElementById(PANES[current]);
-  var nxt = document.getElementById(PANES[name]);
-  cur.classList.remove('on');
-  if (!isBack) { cur.classList.add('out'); setTimeout(function(){ cur.classList.remove('out'); }, 430); }
-  if (!isBack && current !== 'loading') HISTORY.push(current);
-  current = name;
-  paint(name);
-  nxt.classList.add('on');
-  nxt.scrollTop = 0;
-  document.getElementById('bar').style.width = (PROGRESS[name] * 100) + '%';
-  document.getElementById('back').classList.toggle('on',
-    name !== 'login' && name !== 'loading' && name !== 'home');
+/* ── talking to the Google script ─────────────────────────────────────── */
+function post(action, body) {
+  body = body || {}; body.action = action; if (S.token) body.token = S.token;
+  return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) { setConn(true); if (j && j.signedOut) { signOut(true); } return j; }, function (e) { setConn(false); throw e; });
 }
-function goBack(){
-  var prev = HISTORY.pop() || 'home';
-  if (prev === 'loading' || prev === 'login') prev = 'home';
-  go(prev, true);
+function setConn(on) {
+  var q = queue().length, c = $('conn');
+  c.className = 'conn' + (on ? '' : ' off');
+  c.querySelector('span').textContent = (on ? 'Connected' : 'No signal') + (q ? ' · ' + q + ' waiting' : '');
 }
-function paint(name){
-  // Never leave the camera — or the auto-scan loop — running behind a screen
-  // that is not the scanner. A loop nobody can see is a loop spending OCR
-  // calls nobody asked for.
-  if (name !== 'find'){ stopAutoScan(); stopCamera(); setScanState(''); }
-  if (name === 'home') paintHome();
-  if (name === 'find'){
-    document.getElementById('scanWho').textContent = 'Student No. ' + (S.done + 1);
-    say('mScan','');
+
+/* ── screens ──────────────────────────────────────────────────────────── */
+var screen = 'pLogin', trail = [];
+function show(id, keep) {
+  if (screen !== id && keep !== false && id !== 'pHome' && id !== 'pLogin') trail.push(screen);
+  if (id === 'pHome' || id === 'pLogin') trail = [];
+  document.querySelectorAll('.pane').forEach(function (p) { p.classList.toggle('on', p.id === id); });
+  screen = id; $('back').hidden = (id === 'pHome' || id === 'pLogin' || id === 'pSaved');
+  if (id !== 'pCam') stopCamera();
+  window.scrollTo(0, 0);
+}
+function goBack() { var to = trail.pop() || 'pHome'; if (to === 'pCam') return goScan(true); show(to, false); if (to === 'pHome') paintHome(); }
+
+/* ── sign in ──────────────────────────────────────────────────────────── */
+function doLogin() {
+  if (!API) return say('mLogin', 'This page has not been connected to the Google script yet.', true);
+  var pw = $('pw').value; if (!pw) return;
+  LS.set('gate.post', $('gate').value);
+  $('btnLogin').disabled = true; say('mLogin', '');
+  post('login', { role: 'gate', password: pw }).then(function (j) {
+    $('btnLogin').disabled = false;
+    if (!j.ok) return say('mLogin', j.error, true);
+    S.token = j.token; S.names = j.names || [];
+    sessionStorage.setItem('gate.token', S.token); sessionStorage.setItem('gate.names', JSON.stringify(S.names));
+    $('pw').value = ''; show('pHome'); paintHome(); flush();
+  }).catch(function () { $('btnLogin').disabled = false; say('mLogin', 'No signal. Try again in a moment.', true); });
+}
+function signOut(expired) {
+  S.token = ''; sessionStorage.removeItem('gate.token'); sessionStorage.removeItem('gate.names');
+  show('pLogin'); if (expired) say('mLogin', 'Signed out. Sign in again.', true);
+}
+
+/* ── home ─────────────────────────────────────────────────────────────── */
+function hist() { var h = LS.get('gate.log', { day: '', items: [] }); if (h.day !== today()) { h = { day: today(), items: [] }; LS.set('gate.log', h); } return h; }
+function saveHist(h) { LS.set('gate.log', h); }
+function paintHome() {
+  var h = hist(), q = queue();
+  $('homeCount').textContent = h.items.length ? h.items.length + ' recorded today' : 'Nobody recorded yet today';
+  $('recWrap').style.display = h.items.length ? '' : 'none';
+  $('recList').innerHTML = h.items.slice().reverse().slice(0, 8).map(function (x) {
+    var waiting = q.some(function (y) { return y.id === x.id; });
+    return '<div class="rec"><b>' + esc(x.name) + '</b><span>' + esc(x.cls) + ' · ' + esc(x.time.slice(0, 5)) + (waiting ? ' · <span class="wait">waiting to send</span>' : '') + '</span></div>';
+  }).join('');
+  $('undoLast').style.visibility = h.items.length ? '' : 'hidden';
+  setConn(navigator.onLine);
+}
+
+/* ── typing ───────────────────────────────────────────────────────────── */
+function goType(keep) { show('pType'); var q = $('q'); if (!keep) q.value = ''; onSearch(); setTimeout(function () { q.focus(); }, 50); }
+function onSearch() {
+  var q = $('q').value, box = $('hits'); say('mType', '');
+  if (!q.trim()) { box.innerHTML = ''; return; }
+  var hits = search(q, 8);
+  if (!hits.length) {
+    box.innerHTML = '<p class="lede">Nobody matches that.</p>';
+    var b = document.createElement('button'); b.className = 'btn quiet'; b.textContent = 'Record anyway — not on the list';
+    b.onclick = function () { choose(['', q.trim().toUpperCase(), '', '']); }; box.appendChild(b); return;
   }
-  if (name === 'type'){
-    document.getElementById('typeWho').textContent = 'Student No. ' + (S.done + 1);
-    document.getElementById('q').value = '';
-    document.getElementById('hits').innerHTML = '';
-    say('mType','');
-  }
+  box.innerHTML = '';
+  hits.forEach(function (h) { var b = document.createElement('button'); b.className = 'hit'; b.innerHTML = '<b>' + esc(h.st[1]) + '</b><span>' + esc(h.st[2]) + already(h.st) + '</span>'; b.onclick = function () { choose(h.st); }; box.appendChild(b); });
 }
+function already(st) { return hist().items.some(function (x) { return st[0] ? x.studentId === st[0] : x.name === st[1]; }) ? ' · already recorded today' : ''; }
 
-/** "Friday, 31 July 2026" — built by hand so it reads the same on every device. */
-function dateLine(){
-  var D=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var M=['January','February','March','April','May','June','July',
-         'August','September','October','November','December'];
-  var d=new Date();
-  return D[d.getDay()] + ', ' + d.getDate() + ' ' + M[d.getMonth()] + ' ' + d.getFullYear();
+/* ── matching, all on the phone (unchanged from July) ─────────────────── */
+function norm(s) { return String(s || '').toUpperCase().replace(/[(),.'’\-@]/g, ' ').replace(/\s+/g, ' ').trim(); }
+function tokens(s) { return norm(s).split(' ').filter(Boolean); }
+function uniqueTokens(s) { var seen = {}, out = []; tokens(s).forEach(function (t) { if (!seen[t]) { seen[t] = 1; out.push(t); } }); return out; }
+function lev(a, b) { if (a === b) return 0; if (!a.length) return b.length; if (!b.length) return a.length; var prev = [], cur = [], i, j; for (j = 0; j <= b.length; j++) prev[j] = j; for (i = 1; i <= a.length; i++) { cur[0] = i; for (j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1)); for (j = 0; j <= b.length; j++) prev[j] = cur[j]; } return prev[b.length]; }
+function wordish(a, b) { return a.indexOf(b) === 0 || b.indexOf(a) === 0; }
+function score(q, name) { var nq = norm(q), nn = norm(name); if (!nq || !nn) return 0; var qa = uniqueTokens(nq), na = uniqueTokens(nn); if (!qa.length) return 0; var hits = 0; qa.forEach(function (w) { if (na.some(function (x) { return wordish(x, w); })) hits++; }); var maxLen = Math.max(nq.length, nn.length) || 1; return (hits / qa.length) * 0.72 + (1 - lev(nq, nn) / maxLen) * 0.28; }
+function search(q, limit) {
+  var nq = norm(q); if (nq.length < 2) return [];
+  var isClass = /^\d\d[A-Z0-9]{1,4}$/.test(nq), out = [];
+  S.names.forEach(function (st) { if (isClass) { if (norm(st[2]) === nq) out.push({ st: st, pct: 1 }); return; } var sc = score(nq, st[1]); if (sc > 0.12) out.push({ st: st, pct: sc }); });
+  out.sort(function (a, b) { return b.pct - a.pct || String(a.st[1]).localeCompare(String(b.st[1])); });
+  return out.slice(0, limit || 8);
 }
-function say(where, text, kind){
-  var el = document.getElementById(where);
-  if (!el) return;
-  if (!text) { el.innerHTML=''; return; }
-  el.innerHTML = '<div class="note ' + (kind||'err') + '"></div>';
-  el.firstChild.textContent = text;
+function coverage(qt, name) { var cand = tokens(name).slice(), used = [], left = 0; qt.forEach(function (t) { for (var i = 0; i < cand.length; i++) if (cand[i] !== null && wordish(cand[i], t)) { used.push(cand[i]); cand[i] = null; return; } left++; }); used.sort(); return used.join('+') + '|' + left + '|' + cand.filter(function (c) { return c !== null; }).length; }
+function distinguishes(text, a, b) { if (!b) return true; var qt = tokens(text); return qt.length ? coverage(qt, a) !== coverage(qt, b) : false; }
+
+/* ── camera: crops to the name line only, then reads ──────────────────── */
+var stream = null, timer = null, reading = false, misses = 0;
+function goScan(back) {
+  show('pCam', back ? false : undefined); say('mCam', ''); placeBand(); setState('');
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return say('mCam', 'This phone will not give the page a camera. Type the name instead.', true);
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1440 } } })
+    .then(function (st) { stream = st; var v = $('cam'); v.srcObject = st; v.play(); startAuto(); })
+    .catch(function () { say('mCam', 'No camera. Allow the camera for this page, or type the name instead.', true); });
 }
-
-/* ── server ─────────────────────────────────────────────────────────── */
-/* ── RETRY, WITH THE WAIT SPREAD OUT ──────────────────────────────────────
-   Measured on 4 August 2026: requests to this deployment succeed 100% of the
-   time when nothing else is talking to it, and start failing as soon as
-   anything is — 93% with two devices, 80% with two devices both busy. The
-   fault is CONCURRENCY, not the device, the network or the browser.
-
-   That matters for how a retry is written. A fixed delay is the wrong shape
-   when the cause is collision: two clients that collide, both wait exactly
-   700ms, and collide again. So the wait GROWS and is JITTERED — a random
-   spread — which is what pulls two unlucky clients apart instead of keeping
-   them in step.
-
-   WHICH ACTIONS RETRY IS THE PART TO READ CAREFULLY. Reads and sign-ins do:
-   they change nothing, so sending one again costs a second and risks nothing.
-   logScan, logEarly and undo DO NOT, and must never be added — retrying a
-   write whose reply went missing is how one late arrival becomes two, and
-   nobody would ever notice. When a write's reply is lost the honest answer is
-   "it may have worked, go and look". */
-var RETRY_SAFE = { login:1, gateLogin:1, bootstrap:1, refresh:1, ocr:1 };
-
-function post(action, body){
-  var left = RETRY_SAFE[action] ? 3 : 0;
-  function attempt(){
-    return postOnce(action, body).catch(function(e){
-      if (left <= 0) throw e;
-      var wait = 500 * Math.pow(2, 3 - left) + Math.floor(Math.random() * 400);
-      left--;
-      return new Promise(function(r){ setTimeout(r, wait); }).then(attempt);
-    });
-  }
-  return attempt();
+function stopCamera() { stopAuto(); if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; } var v = $('cam'); if (v) v.srcObject = null; }
+function bandRect() {   // the band, in viewfinder pixels
+  var vf = $('vf'), W = vf.clientWidth, H = vf.clientHeight, cw = W * CARD.w, ch = cw / 1.586, cx = (W - cw) / 2, cy = (H - ch) / 2;
+  return { x: cx + cw * BAND.x, y: cy + ch * BAND.y, w: cw * BAND.w, h: ch * BAND.h };
 }
-
-function postOnce(action, body){
-  var payload = Object.assign({ action:action, token:S.token }, body||{});
-  /* ── THE TEST SEAM ─────────────────────────────────────────────────────
-     The same one the Hub has had since its browser tests were written. When a
-     harness sets window.__mockApi, every call from this page goes to the REAL
-     handlers running in Node over a fake spreadsheet instead of over the
-     network — so a test can drive this screen and then assert on what landed
-     in 📋 Log.
-
-     IT IS HERE, NOT IN post(), so the retry wrapper above stays under test.
-     And it is placed AFTER the payload is built, so a test sees exactly the
-     body the network would have carried, token included.
-
-     ⚠️ doLogin() does NOT come through here — it sends its own bare fetch,
-     because it has no token yet. A harness signs in by putting a real token in
-     sessionStorage and letting resume() run, which is the path a guard's phone
-     actually takes every morning.
-
-     Added 21 August 2026, after a live bug on this page was fixed and shipped
-     with no test behind it, there being nothing to write one against. */
-  if (window.__mockApi) return window.__mockApi(action, payload);
-  return fetch(GAS_URL, { method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify(payload) })
-    .then(function(r){ return r.json(); })
-    .then(function(j){ if (j && j.needsLogin) { signOut(j.error); throw new Error(j.error); } return j; })
-    .catch(function(){
-      if (GAS_URL.indexOf('PASTE_YOUR') === 0)
-        throw new Error('This page has not been connected yet — the deployment URL is still the placeholder in gate.html.');
-      throw new Error(navigator.onLine
-        ? 'Could not reach the server. If the code was just changed, it needs redeploying as a NEW VERSION of the existing deployment.'
-        : 'No internet connection. Nothing has been saved.');
-    });
-}
-
-/* ── login ──────────────────────────────────────────────────────────── */
-function doLogin(){
-  var who = document.getElementById('who').value.trim();
-  var pw  = document.getElementById('pw').value;
-  if (!who) { say('mLogin','Put your name in — it goes into the record so the DC knows who was on duty.'); return; }
-  if (!pw)  { say('mLogin','Enter the password.'); return; }
-  var b = document.getElementById('btnLogin');
-  b.disabled = true; b.textContent = 'Signing in…'; say('mLogin','');
-  fetch(GAS_URL, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-    /* gateLogin, NOT login, since 3 August 2026. This page used to sign in with
-       the COMMITTEE password, which minted a committee token — so the guards
-       held a credential that opened the Hub. It now has its own password and
-       its own five-action whitelist. See ROLE_ACTIONS in WebApi.gs.
-       If this ever returns "This app has not been set up yet", the gate
-       password has not been set: Attendance → ⚙️ Setup and repair →
-       🚧 Set the gate scanner password. Do not fall back to the committee one. */
-    body:JSON.stringify({ action:'gateLogin', password:pw }) })
-    .then(function(r){ return r.json(); })
-    .then(function(j){
-      b.disabled = false; b.textContent = 'Sign in';
-      if (!j.ok) { say('mLogin', j.error || 'Could not sign in.'); return; }
-      S.token = j.token; S.who = who;
-      idleStart(j.idleMinutes);
-      /* THE IDLE NUMBER IS STORED TOO, added 11 August 2026. It arrives only
-         with this reply, and resume() at the foot of this file has no reply to
-         read it from — so without this, reloading left the timer disarmed. */
-      try { sessionStorage.setItem('sajc_gate_token', j.token);
-            sessionStorage.setItem('sajc_gate_who', who);
-            sessionStorage.setItem('sajc_gate_idle', String(Number(j.idleMinutes) || 0)); } catch(e){}
-      document.getElementById('pw').value = '';
-      bootstrap(false);
-    })
-    .catch(function(){
-      b.disabled = false; b.textContent = 'Sign in';
-      say('mLogin', GAS_URL.indexOf('PASTE_YOUR') === 0
-        ? 'This page has not been connected yet — the deployment URL is still the placeholder in gate.html.'
-        : 'Could not reach the server. Check your connection.');
-    });
-}
-
-/* ── THE IDLE SIGN-OUT, ADDED 3 AUGUST 2026 ────────────────────────────────
-   This is a SHARED MACHINE in a room the public walks through. The threat is
-   not somebody guessing the password; it is the page still being signed in
-   when the person who signed in has walked away. That is the whole reason this
-   exists, and it is why the Hub does not have one — the Hub sits on somebody's
-   own laptop.
-
-   THE NUMBER COMES FROM ⚙️ Config, arriving with the token at sign-in, so it
-   can be changed in a cell rather than by re-committing this page. Blank or 0
-   turns it off, which is a real choice somebody may want on a machine that
-   nobody else can reach.
-
-   IT COUNTS INACTIVITY, NOT TIME SIGNED IN. Every touch, tap, key and scroll
-   pushes the deadline back, so it never signs out somebody mid-slip. The
-   camera does not count as activity — a scan screen left open pointing at a
-   wall is exactly the state this is here to end.
-
-   IT SAYS WHY. Landing on a sign-in screen with no explanation reads as a
-   fault, and the next thing somebody does with an app that seems to have
-   broken is stop using it. */
-var IDLE_MIN = 0, idleTimer = null;
-
-function idleStart(mins){
-  IDLE_MIN = Number(mins) || 0;
-  idleBump();
-}
-function idleBump(){
-  if (idleTimer) clearTimeout(idleTimer);
-  if (!IDLE_MIN) return;                       /* 0 or blank: switched off */
-  idleTimer = setTimeout(function(){
-    idleTimer = null;
-    if (!S.token) return;           /* already signed out */
-    signOut('Signed out after ' + IDLE_MIN + ' minutes without use. ' +
-            'This is a shared screen, so it does not stay open on its own.');
-  }, IDLE_MIN * 60 * 1000);
-}
-function idleStop(){ if (idleTimer) clearTimeout(idleTimer); idleTimer = null; }
-
-/* Passive listeners: this must never cost a frame on a phone mid-scan. */
-['pointerdown','keydown','touchstart','scroll','wheel'].forEach(function(ev){
-  document.addEventListener(ev, idleBump, { passive: true });
-});
-
-function signOut(why){
-  idleStop();   /* stop the clock before the screen changes */
-  S.token=null; S.students=[]; S.today={}; S.recent=[]; S.done=0; HISTORY=[];
-  try { sessionStorage.removeItem('sajc_gate_token');
-        sessionStorage.removeItem('sajc_gate_who');
-        sessionStorage.removeItem('sajc_gate_idle'); } catch(e){}
-  document.getElementById('hdrSub').textContent='';
-  go('login', true);
-  if (why) say('mLogin', why);
-}
-
-/* ── the one big call ───────────────────────────────────────────────── */
-function bootstrap(force){
-  go('loading');
-  document.getElementById('loadMsg').textContent = force ? 'Re-reading the roster' : 'Fetching the roster';
-  post(force ? 'refresh' : 'bootstrap', {}).then(function(j){
-    if (!j.ok) { signOut(j.error); return; }
-    S.students = j.students||[]; S.today = j.today||{};
-    S.cfg = j.config||S.cfg; S.loadedAt = j.serverTime||'';
-    document.getElementById('hdrSub').textContent = '· ' + S.who;
-    HISTORY = [];
-    go('home', true);
-  }).catch(function(e){ go('home', true); say('mHome', e.message); });
-}
-function refreshAll(){ bootstrap(true); }
-
-function paintHome(){
-  document.getElementById('homeEyebrow').textContent = dateLine();
-  document.getElementById('homeStats').textContent = S.done
-    ? S.done + ' recorded so far.'
-    : 'Nothing recorded yet.';
-  document.getElementById('loadedAt').textContent = S.loadedAt ? 'Roster loaded at ' + S.loadedAt : '';
-
-  var wrap = document.getElementById('recentWrap'), list = document.getElementById('recentList');
-  if (!S.recent.length) { wrap.style.display='none'; return; }
-  wrap.style.display='block'; list.innerHTML='';
-  S.recent.forEach(function(r){
-    var b = document.createElement('button');
-    b.className='choice';
-    b.innerHTML='<span class="key">✕</span><span class="txt"><b></b><span></span></span>';
-    b.querySelector('b').textContent = r.name;
-    b.querySelector('.txt span').textContent = r.cls + ' · ' + r.time +
-      (r.counts===2 ? ' · double late' : '');
-    b.onclick = function(){ removeRecent(r.entryId); };
-    list.appendChild(b);
-  });
-}
-function removeRecent(entryId){
-  if (!confirm('Remove that entry from the record?')) return;
-  post('undo',{entryId:entryId}).then(function(j){
-    if (!j.ok) { say('mHome', j.error); return; }
-    S.recent = S.recent.filter(function(r){ return r.entryId!==entryId; });
-    S.done = Math.max(0, S.done-1);
-    say('mHome','Removed.','ok'); paintHome();
-  }).catch(function(e){ say('mHome', e.message); });
-}
-
-/* ── matching, all local ──────────────────────────────────────────────
-   score = 0.72 x word overlap + 0.28 x normalised Levenshtein.
-
-   Token sets are DE-DUPLICATED before the overlap is counted, so a name
-   containing the same word twice — "XUAN XUAN" — cannot score as two
-   separate matches and float above a name that genuinely matches twice.
-   ─────────────────────────────────────────────────────────────────── */
-function norm(s){ return String(s||'').toUpperCase().replace(/[(),.'’\-]/g,' ').replace(/\s+/g,' ').trim(); }
-function tokens(s){ return norm(s).split(' ').filter(Boolean); }
-function uniqueTokens(s){
-  var seen={}, out=[];
-  tokens(s).forEach(function(t){ if (!seen[t]) { seen[t]=1; out.push(t); } });
-  return out;
-}
-function lev(a,b){
-  if (a===b) return 0;
-  if (!a.length) return b.length;
-  if (!b.length) return a.length;
-  var prev=[],cur=[],i,j;
-  for (j=0;j<=b.length;j++) prev[j]=j;
-  for (i=1;i<=a.length;i++){
-    cur[0]=i;
-    for (j=1;j<=b.length;j++)
-      cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
-    for (j=0;j<=b.length;j++) prev[j]=cur[j];
-  }
-  return prev[b.length];
-}
-function wordish(a,b){ return a.indexOf(b)===0 || b.indexOf(a)===0; }
-function score(q,name){
-  var nq=norm(q), nn=norm(name);
-  if (!nq||!nn) return 0;
-  var qa=uniqueTokens(nq), na=uniqueTokens(nn);
-  if (!qa.length) return 0;
-  var hits=0;
-  qa.forEach(function(w){ if (na.some(function(x){ return wordish(x,w); })) hits++; });
-  var maxLen=Math.max(nq.length,nn.length)||1;
-  return (hits/qa.length)*0.72 + (1-lev(nq,nn)/maxLen)*0.28;
-}
-function search(q,limit){
-  var nq=norm(q);
-  if (nq.length<2) return [];
-  /* WHAT COUNTS AS A CLASS CODE. Two digits then letters and digits — not the
-     rigid 26A02 shape this tested for until 6 August 2026. Headstart students
-     are named 27HS, a real class code carrying its intake year but only four
-     characters with no trailing digits, and the old pattern rejected it: typing
-     the class at the gate fell through to fuzzy NAME matching and returned
-     whoever happened to score, or nobody. It matched every other class in the
-     school, which is why nothing looked wrong. Anchored and still starting with
-     two digits, so a two-letter surname cannot become a class lookup. */
-  var isClass=/^\d\d[A-Z0-9]{1,4}$/.test(nq), out=[];
-  for (var i=0;i<S.students.length;i++){
-    var st=S.students[i];
-    if (isClass){ if (norm(st[2])===nq) out.push({st:st,pct:1}); continue; }
-    var sc=score(nq,st[1]);
-    if (sc>0.12) out.push({st:st,pct:sc});
-  }
-  out.sort(function(a,b){ return b.pct-a.pct || String(a.st[1]).localeCompare(String(b.st[1])); });
-  return out.slice(0, limit||8);
-}
-
-/* ── THE THIRD TEST ───────────────────────────────────────────────────
-   Score and margin are not enough, and this was found by testing rather
-   than by reasoning.
-
-   THE NAMES BELOW ARE INVENTED, and deliberately so — redacted 6 August
-   2026. This note originally quoted the real students the test was run
-   against, which put four names in a public repository and its whole
-   history. A comment explaining an algorithm does not need real people to
-   make its point; it needs names with the right SHAPE. These have it, and
-   nobody has to be in a code repository for it to be understood.
-
-   A partial read of "AVERY LIM HUI" scored 0.153 clear of second place —
-   over the 0.15 margin — and auto-advanced to AVERY LIM HUI HUI over
-   AVERY LIM HUI EN. That is a coin flip presented as confidence, and it is
-   exactly what the scoring cannot see: it has no concept of WHICH words
-   matter.
-
-   So there is a third test. THE WORDS ACTUALLY READ MUST ACCOUNT FOR THE
-   TOP TWO CANDIDATES DIFFERENTLY. "AVERY LIM HUI" explains both equally —
-   three tokens matched, one candidate token left over on each — so it asks.
-   "AVERY LIM HUI HUI" explains the first completely and leaves a spare
-   token against the second, so it advances.
-
-   The same rule stops a bare "JORDAN NG" guessing between three of them.
-   The 0.72 and 0.15 thresholds are unchanged.
-   ─────────────────────────────────────────────────────────────────── */
-function coverage(queryTokens, name){
-  var cand = tokens(name).slice();
-  var used = [], leftover = 0;
-  queryTokens.forEach(function(qt){
-    for (var i=0;i<cand.length;i++){
-      if (cand[i] !== null && wordish(cand[i], qt)) { used.push(cand[i]); cand[i]=null; return; }
-    }
-    leftover++;
-  });
-  var missing = cand.filter(function(c){ return c !== null; }).length;
-  used.sort();
-  return used.join('+') + '|left' + leftover + '|miss' + missing;
-}
-function distinguishes(queryText, aName, bName){
-  if (!bName) return true;                      // only one candidate; nothing to confuse
-  var qt = tokens(queryText);
-  if (!qt.length) return false;
-  return coverage(qt, aName) !== coverage(qt, bName);
-}
-
-function onSearch(){
-  var q=document.getElementById('q').value;
-  var hits=search(q,8), box=document.getElementById('hits');
-  box.innerHTML=''; say('mType','');
-  if (!q.trim()) return;
-  if (!hits.length){
-    var p=document.createElement('p'); p.className='lede'; p.textContent='Nobody matches that.';
-    box.appendChild(p);
-    var b=document.createElement('button');
-    b.className='btn quiet wide'; b.textContent='Record anyway — not in the roster yet';
-    b.onclick=function(){ recordAnyway(q.trim()); };
-    box.appendChild(b);
-    return;
-  }
-  hits.forEach(function(h,i){ box.appendChild(hitButton(h.st, i + 1)); });
-}
-function hitButton(st, key){
-  var b=document.createElement('button');
-  b.className='choice';
-  var already=latesToday({ id: st[0], cls: st[2], name: st[1] });
-  b.innerHTML='<span class="key"></span><span class="txt"><b></b><span></span></span>' +
-    (already.length ? '<span class="flag">Late Already Registered</span>' : '');
-  b.querySelector('.key').textContent = key ? String(key) : '·';
-  b.querySelector('b').textContent = st[1];
-  b.querySelector('.txt span').textContent = st[2];
-  b.onclick=function(){ chooseStudent(st); };
-  return b;
-}
-
-/* ── the loop ───────────────────────────────────────────────────────── */
-function goScan(){ go('find'); startCamera(); startAutoScan(); }
-function leaveScan(){ stopAutoScan(); stopCamera(); go('home', true); }
-function goType(){ stopAutoScan(); stopCamera(); go('type'); setTimeout(function(){ document.getElementById('q').focus(); },160); }
-function nextStudent(){ S.student=null; HISTORY=[]; go('find'); startCamera(); startAutoScan(); }
-
-/** Show the password. Useful on a phone at a gate, in the dark, in a hurry. */
-function togglePw(){
-  var input = document.getElementById('pw');
-  var btn   = document.getElementById('peek');
-  var show  = input.type === 'password';
-  input.type = show ? 'text' : 'password';
-  btn.classList.toggle('showing', !show);
-  btn.setAttribute('aria-label', show ? 'Hide the password' : 'Show the password');
-  input.focus();
-}
-
-function chooseStudent(st){
-  S.student={id:st[0],name:st[1],cls:st[2]};
-  showConfirm();
-}
-function recordAnyway(typed){
-  if (!confirm('Record "'+typed+'" without a Student ID?\n\nUse this only for a student who genuinely is not in the Master Database yet — a transfer whose roster import has not run. It shows red in the sheet so it can be linked up later.')) return;
-  var cls = prompt('Their class, if you know it:','')||'';
-  S.student={id:'',name:typed.toUpperCase(),cls:cls.toUpperCase().trim()};
-  showConfirm();
-}
-/* ⚠️ THE SAME KEY THE SERVER USES, AND IT HAS TO STAY THAT WAY.
-   bootstrap's `today` map is keyed by keyOf_ on the server: the Student ID, or
-   else '~' + the NORMALISED name + '|' + the class in capitals. This page looks
-   a student up in that map, so a key built any other way silently finds
-   nothing — and finding nothing here means the guard is never warned.
-
-   IT USED TO BE '~'+cls+'|'+name, RAW. Two things were wrong and both were
-   silent: the ORDER was reversed, and the name and class were used exactly as
-   typed, so "nur  aisyah" / "26s01" and "NUR AISYAH" / "26S01" were different
-   students to this page and the same student to the server.
-
-   ⚠️ CHANGED ON 22 AUGUST 2026 IN THE SAME COMMIT AS THE SERVER, deliberately.
-   Moving one side alone switches the flag off for every student without an ID.
-   If this ever needs changing again, both sides move together or neither does.
-
-   The punctuation stripped here is exactly normName_'s list in tracker/Code.js. */
-function normNameKey(s){
-  return String(s||'').toUpperCase().replace(/[(),.'’\-]/g,' ')
-           .replace(/\s+/g,' ').trim();
-}
-function keyFor(s){ return s.id || ('~' + normNameKey(s.name) + '|' +
-                                    String(s.cls||'').trim().toUpperCase()); }
-
-/* ⚠️ LATES ONLY, AND THE FILTER IS THE POINT.
-   bootstrap's `today` map holds EVERY status recorded for a student today —
-   green slips, medical absences, anything the committee typed into the Log —
-   and every entry is labelled with its status. This page ignored the label and
-   treated any row at all as a late, so a student who had left early was flagged
-   at the gate as "Late Already Registered".
-
-   THAT IS NOT A COSMETIC FAULT. A guard who reads it skips her, and a late that
-   is never scanned is a late that never happened — the one failure this screen
-   cannot show anybody afterwards. The server was never wrong; the label was
-   there to be read. Fixed 21 August 2026.
-
-   The server-side guard in apiLogScan_ has always filtered to LATE, so nothing
-   here has ever been able to create a wrong record. What it created was a guard
-   who did not scan. */
-function latesToday(s){
-  return (S.today[keyFor(s)] || []).filter(function(a){ return a.status === 'LATE'; });
-}
-function showConfirm(){
-  var s=S.student;
-  document.getElementById('cWho').textContent = 'Student No. ' + (S.done + 1);
-  document.getElementById('cName').textContent = s.name;
-  document.getElementById('cCls').textContent = s.cls;
-  var already = latesToday(s);
-  if (already.length){
-    say('mConfirm', 'Already recorded today at ' + already.map(function(a){ return a.time; }).join(', ') +
-        '. A second scan inside ' + S.cfg.cooldown + ' minutes is refused.', 'warn');
-  } else {
-    say('mConfirm','');
-  }
-  go('confirm');
-}
-
-function record(){
-  var s=S.student, b=document.getElementById('btnRecord');
-  b.disabled=true; b.textContent='Saving…';
-  post('logScan',{ studentId:s.id, name:s.name, cls:s.cls, by:S.who })
-    .then(function(j){
-      b.disabled=false; b.textContent='Register as Late';
-      if (!j.ok){ say('mConfirm', j.error, j.duplicate ? 'warn' : 'err'); return; }
-
-      var key=keyFor(s);
-      if (!S.today[key]) S.today[key]=[];
-      S.today[key].push({status:'LATE', time:j.time, entryId:j.entryId});
-
-      S.lastEntry={entryId:j.entryId};
-      S.recent.unshift({entryId:j.entryId,name:s.name,cls:s.cls,time:j.time,counts:j.counts});
-      S.recent=S.recent.slice(0,10); S.done++;
-
-      document.getElementById('dWhat').textContent =
-        s.name + ' · ' + s.cls + ' · ' + j.time +
-        (j.doubleLate ? ' — double late' : '');
-      say('mDone', j.noTerm
-        ? 'That date falls outside every term in the sheet — a school holiday, or the Terms tab needs this year\'s dates. It is recorded, but it counts toward no term.'
-        : '', 'warn');
-      document.getElementById('btnUndo').style.display='block';
-      go('done');
-    })
-    .catch(function(e){ b.disabled=false; b.textContent='Register as Late'; say('mConfirm', e.message); });
-}
-function undoLast(){
-  if (!S.lastEntry) return;
-  var entry=S.lastEntry;
-  post('undo',{entryId:entry.entryId}).then(function(j){
-    if (!j.ok){ alert(j.error); return; }
-    S.recent=S.recent.filter(function(r){ return r.entryId!==entry.entryId; });
-    S.lastEntry=null; S.done=Math.max(0,S.done-1);
-    document.getElementById('btnUndo').style.display='none';
-    document.getElementById('dWhat').textContent='Removed. Nothing was recorded for this student.';
-  }).catch(function(e){ alert(e.message); });
-}
-
-/* ── the card scanner ───────────────────────────────────────────────────
-   The guide box is 86% x 72% of a 4:3 viewfinder — 1.593:1, against a real
-   ID card's 1.585:1. The photo is CROPPED to that box before being sent for
-   reading, which matters more than it looks: OCR given a whole room performs
-   far worse than OCR given just a card.
-   ───────────────────────────────────────────────────────────────────── */
-var CARD = { x:.07, y:.14, w:.86, h:.72 };
-var stream=null;
-
-function startCamera(){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    say('mScan','This browser will not give the page a camera. Type the name instead.','warn'); return;
-  }
-  navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment',
-      width:{ideal:1920}, height:{ideal:1440} } })
-    .then(function(st){ stream=st; var v=document.getElementById('cam'); v.srcObject=st; v.play(); })
-    .catch(function(){
-      say('mScan','No camera access. Check the browser has permission, or type the name instead.','warn');
-    });
-}
-function stopCamera(){
-  if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream=null; }
-  var v=document.getElementById('cam'); if (v) v.srcObject=null;
-  var busy=document.getElementById('vfBusy'); if (busy) busy.classList.remove('on');
-  var btn=document.getElementById('btnShot'); if (btn) btn.disabled=false;
-}
-
-/** Crop the live frame down to just what is inside the guide box. */
-function croppedCard(){
-  var v=document.getElementById('cam'), c=document.getElementById('shot');
-  var nw=v.videoWidth, nh=v.videoHeight;
-  var bw=v.clientWidth, bh=v.clientHeight;
+function placeBand() { var r = bandRect(), b = $('band'), l = $('bandlab'); b.style.left = r.x + 'px'; b.style.top = r.y + 'px'; b.style.width = r.w + 'px'; b.style.height = r.h + 'px'; l.style.left = r.x + 'px'; l.style.top = (r.y - 22) + 'px'; }
+window.addEventListener('resize', function () { if (screen === 'pCam') placeBand(); });
+function cropBand() {
+  var v = $('cam'), c = $('shot'), nw = v.videoWidth, nh = v.videoHeight, vf = $('vf'), bw = vf.clientWidth, bh = vf.clientHeight;
   if (!nw || !bw) return null;
-
-  // object-fit:cover means part of the frame is off-screen; work out what is visible
-  var na=nw/nh, ba=bw/bh, visW, visH, visX, visY;
-  if (na > ba){ visH=nh; visW=visH*ba; visY=0; visX=(nw-visW)/2; }
-  else        { visW=nw; visH=visW/ba; visX=0; visY=(nh-visH)/2; }
-
-  var cx=Math.round(visX+visW*CARD.x), cy=Math.round(visY+visH*CARD.y);
-  var cw=Math.round(visW*CARD.w),      ch=Math.round(visH*CARD.h);
-
-  var MAX=1200, scale=Math.min(1, MAX/Math.max(cw,ch));
-  c.width=Math.round(cw*scale); c.height=Math.round(ch*scale);
-  c.getContext('2d').drawImage(v, cx, cy, cw, ch, 0, 0, c.width, c.height);
+  var s = Math.max(bw / nw, bh / nh), offX = (nw * s - bw) / 2, offY = (nh * s - bh) / 2, r = bandRect();   // object-fit: cover
+  var sx = (r.x + offX) / s, sy = (r.y + offY) / s, sw = r.w / s, sh = r.h / s;
+  var k = Math.min(1, 1000 / sw); c.width = Math.round(sw * k); c.height = Math.round(sh * k);
+  c.getContext('2d').drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
   return c;
 }
-
-/* ── AUTO-SCAN ─────────────────────────────────────────────────────────
-   The camera reads by itself. Hold a card up to it and the app advances on
-   its own the moment it is sure — no tapping between students, which is the
-   whole point at a gate with a queue.
-
-   IT STILL NEVER GUESSES. Auto-scan only changes WHEN a read happens; the
-   three tests that decide whether to advance are unchanged, so an uncertain
-   read stops the loop and asks rather than picking someone.
-
-   THE OCR BUDGET IS REAL, and it is why this does not read forever. Each
-   frame is a call against OCR.space's free tier, so after MAX_MISSES
-   consecutive frames with nothing recognisable in them the loop stops and
-   waits to be told to carry on. At 1.2s that is about fifteen seconds of
-   trying per student — roughly a dozen calls at worst, rather than an
-   unbounded stream while a phone sits face-up on a table.
-   ─────────────────────────────────────────────────────────────────────── */
-var SCAN_INTERVAL = 1200;
-var MAX_MISSES    = 12;
-var scanTimer = null, scanning = false, reading = false, misses = 0;
-
-function setScanState(text, strong){
-  var el = document.getElementById('scanState');
-  if (!el) return;
-  el.innerHTML = '';
-  if (!text) return;
-  if (strong){ var b = document.createElement('b'); b.textContent = text; el.appendChild(b); }
-  else el.textContent = text;
+function setState(t) { $('scanState').textContent = t || ''; }
+function startAuto() { stopAuto(); misses = 0; timer = setInterval(function () { if (!reading) read(true); }, CFG.scanEvery); setState('Looking'); }
+function stopAuto() { if (timer) { clearInterval(timer); timer = null; } }
+function readNow() { if (reading) return; if (!timer) startAuto(); read(false); }
+function read(auto) {
+  var c = cropBand(); if (!c) return;
+  reading = true; if (!auto) $('btnShot').disabled = true; setState('Reading');
+  post('ocr', { image: c.toDataURL('image/jpeg', .85).split(',')[1] }).then(function (j) {
+    reading = false; $('btnShot').disabled = false;
+    if (!j.ok) { stopAuto(); setState(''); return say('mCam', j.error, true); }
+    handleRead(j.text || '', auto);
+  }).catch(function () { reading = false; $('btnShot').disabled = false; stopAuto(); setState(''); say('mCam', 'No signal for reading cards. Type the name instead.', true); });
+}
+function handleRead(text, auto) {
+  var lines = text.split(/[\n\r]+/).map(function (l) { return l.trim(); }).filter(function (l) { return l.length > 2; });
+  var best = [], seen = {}, lineOf = {};
+  lines.forEach(function (line) { search(line, 5).forEach(function (h) { var id = h.st[0] || h.st[1]; if (seen[id]) { if (h.pct > seen[id].pct) { seen[id].pct = h.pct; lineOf[id] = line; } return; } seen[id] = { st: h.st, pct: h.pct }; lineOf[id] = line; best.push(seen[id]); }); });
+  best.sort(function (a, b) { return b.pct - a.pct; });
+  var top = best[0], second = best[1], line = top ? lineOf[top.st[0] || top.st[1]] : '';
+  var good = !!top && top.pct >= CFG.minScore, clear = !!top && (!second || top.pct - second.pct >= CFG.minMargin), apart = !!top && distinguishes(line, top.st[1], second ? second.st[1] : '');
+  if (!top) { if (auto && ++misses < CFG.maxMisses) return setState('Looking'); stopAuto(); setState(''); return auto ? say('mCam', 'No name read yet. Hold the card flat with the name in the box, press the round button, or type the name.', true) : goType(); }
+  if (good && clear && apart) return choose(top.st);
+  if (auto && !(good && clear) && ++misses < CFG.maxMisses) return setState('Hold it steady');
+  stopAuto(); S.cands = best.slice(0, 4); show('pPick');
+  $('pickList').innerHTML = ''; S.cands.forEach(function (h, i) { var b = document.createElement('button'); b.className = 'choice' + (i === 0 ? ' best' : ''); b.innerHTML = '<b>' + esc(h.st[1]) + '</b><span>' + esc(h.st[2]) + '</span>' + (already(h.st) ? '<span class="flag">Already recorded today</span>' : ''); b.onclick = function () { choose(h.st); }; $('pickList').appendChild(b); });
 }
 
-function startAutoScan(){
-  stopAutoScan();
-  misses = 0;
-  scanning = true;
-  setScanState('Looking for a card');
-  scanTimer = setInterval(function(){
-    if (!scanning || reading) return;
-    readCard(true);
-  }, SCAN_INTERVAL);
+/* ── confirm, record, undo ────────────────────────────────────────────── */
+function choose(st) {
+  S.current = st; show('pConfirm');
+  $('cName').textContent = st[1]; $('cCls').textContent = st[2] || 'Not on the list'; $('cTime').textContent = hhmm();
+  say('mConfirm', already(st) ? 'Already recorded today. Record again only if this is a second arrival.' : '');
+  $('btnRecord').disabled = false;
 }
-function stopAutoScan(){
-  if (scanTimer){ clearInterval(scanTimer); scanTimer = null; }
-  scanning = false;
+function queue() { return LS.get('gate.queue', []); }
+function setQueue(q) { LS.set('gate.queue', q); }
+function record() {
+  var st = S.current; if (!st) return;
+  $('btnRecord').disabled = true;
+  var made = Date.now(), item = { id: device + '-' + made.toString(36) + Math.random().toString(36).slice(2, 5), studentId: st[0], name: st[1], cls: st[2], index: st[3], gate: LS.get('gate.post', 'Security Post'), device: device, madeAt: made };
+  var h = hist(); h.items.push({ id: item.id, studentId: st[0], name: st[1], cls: st[2], time: hhmm(new Date(made)) + ':00', sent: false }); saveHist(h);
+  var q = queue(); q.push(item); setQueue(q);
+  S.last = { id: item.id, at: made };
+  show('pSaved'); $('sName').textContent = st[1]; $('sCls').textContent = st[2] || 'Not on the list'; $('sTime').textContent = hhmm(new Date(made)); say('mSaved', '');
+  $('undoNow').style.visibility = '';
+  setTimeout(function () { if (screen === 'pSaved' && S.last && S.last.id === item.id) $('undoNow').style.visibility = 'hidden'; }, CFG.undoSeconds * 1000);
+  flush().then(function () { var x = hist().items.filter(function (y) { return y.id === item.id; })[0]; if (screen === 'pSaved' && S.last && S.last.id === item.id) { if (x && x.sent) $('sTime').textContent = x.time.slice(0, 5); else say('mSaved', 'No signal — this one waits on the phone and sends by itself.'); } });
 }
-
-/** The shutter. Forces a read now, and restarts the loop if it had given up. */
-function readNow(){
-  if (reading) return;
-  if (!scanning) startAutoScan();
-  readCard(false);
-}
-
-function readCard(auto){
-  var c = croppedCard();
-  if (!c){
-    if (!auto) say('mScan','The camera is not ready yet — give it a second.','warn');
-    return;
-  }
-  var b64 = c.toDataURL('image/jpeg', .85).split(',')[1];
-  var btn = document.getElementById('btnShot'), busyEl = document.getElementById('vfBusy');
-
-  reading = true;
-  // The blocking overlay is for a deliberate tap only. Flashing it every
-  // 1.2s during auto-scan would hide the very thing being aimed at.
-  if (auto) setScanState('Reading'); else { btn.disabled = true; busyEl.classList.add('on'); }
-  say('mScan','');
-
-  post('ocr',{base64:b64}).then(function(j){
-    reading = false;
-    btn.disabled = false; busyEl.classList.remove('on');
-    if (!j.ok){
-      stopAutoScan();
-      setScanState('');
-      say('mScan', j.error, 'warn');
-      return;
-    }
-    handleOcr(j.text||'', auto);
-  }).catch(function(e){
-    reading = false;
-    btn.disabled = false; busyEl.classList.remove('on');
-    stopAutoScan();
-    setScanState('');
-    say('mScan', e.message);
-  });
-}
-
-/**
- * Auto-advance needs THREE things, not two: a good enough score, a clear
- * enough margin, and a read that actually tells the top two apart. It never
- * guesses.
- */
-/* ── WHAT TO DO WITH A READ ───────────────────────────────────────────
-   Pulled out as a pure function on purpose. Auto-scan spends OCR calls, and
-   the difference between "keep looking" and "stop and ask" is what decides
-   how many — so it is worth being able to test it directly rather than
-   trusting it because the screen looked right once.
-
-   advance      sure enough to move on by itself
-   ask          stop and show the candidate list
-   keep-looking an auto read that has settled nothing yet, budget remaining
-   give-up      auto, budget spent, nothing read
-   type         a deliberate tap that read nothing — go straight to typing
-   ─────────────────────────────────────────────────────────────────── */
-function scanVerdict(r){
-  if (!r.anyMatch){
-    if (!r.auto) return 'type';
-    return (r.misses + 1 < r.maxMisses) ? 'keep-looking' : 'give-up';
-  }
-  if (r.goodEnough && r.clearEnough && r.tellsApart) return 'advance';
-
-  // A strong, unambiguous-scoring read that still cannot separate two real
-  // students will never improve by looking again — that is the point of the
-  // third test. Ask straight away rather than burning the rest of the budget.
-  var genuinelyAmbiguous = r.goodEnough && r.clearEnough && !r.tellsApart;
-  if (r.auto && !genuinelyAmbiguous && (r.misses + 1 < r.maxMisses)) return 'keep-looking';
-  return 'ask';
-}
-
-function handleOcr(text, auto){
-  var lines=text.split(/[\n\r]+/).map(function(l){ return l.trim(); }).filter(function(l){ return l.length>2; });
-  var best=[], seen={}, bestLine={};
-  lines.forEach(function(line){
-    search(line,5).forEach(function(h){
-      var id=h.st[0]||h.st[1];
-      if (seen[id]){
-        if (h.pct>seen[id].pct){ seen[id].pct=h.pct; bestLine[id]=line; }
-        return;
-      }
-      seen[id]={st:h.st,pct:h.pct}; bestLine[id]=line; best.push(seen[id]);
+var flushing = null;
+function flush() {
+  if (flushing) return flushing;
+  var q = queue(); if (!q.length || !S.token) { setConn(navigator.onLine); return Promise.resolve(); }
+  flushing = q.reduce(function (p, item) {
+    return p.then(function () {
+      return post('scan', item).then(function (j) {
+        if (!j.ok) return;
+        setQueue(queue().filter(function (y) { return y.id !== item.id; }));
+        var h = hist(); h.items.forEach(function (x) { if (x.id === item.id) { x.sent = true; x.time = j.time; } }); saveHist(h);
+      });
     });
-  });
-  best.sort(function(a,b){ return b.pct-a.pct; });
-
-  var top    = best.length ? best[0] : null;
-  var second = best.length > 1 ? best[1] : null;
-  var line   = top ? (bestLine[top.st[0]||top.st[1]] || lines.join(' ')) : '';
-
-  var r = {
-    anyMatch:    !!top,
-    auto:        !!auto,
-    misses:      misses,
-    maxMisses:   MAX_MISSES,
-    goodEnough:  !!top && top.pct >= S.cfg.minScore,
-    clearEnough: !!top && (!second || (top.pct - second.pct) >= S.cfg.minMargin),
-    tellsApart:  !!top && distinguishes(line, top.st[1], second ? second.st[1] : '')
-  };
-  var verdict = scanVerdict(r);
-
-  if (verdict === 'keep-looking'){
-    misses++;
-    setScanState(r.anyMatch ? 'Hold it steady' : 'Looking for a card');
-    return;
-  }
-
-  stopAutoScan();
-
-  if (verdict === 'give-up'){
-    setScanState('');
-    say('mScan','No name read yet. Hold the card flat inside the box, tap the button to try again, or type the name.','warn');
-    return;
-  }
-  if (verdict === 'type'){
-    stopCamera(); setScanState('');
-    goType();
-    document.getElementById('q').value = lines[0] || ''; onSearch();
-    say('mType','Could not read a name from that. Type it instead.','warn');
-    return;
-  }
-  if (verdict === 'advance'){
-    stopCamera(); setScanState('');
-    chooseStudent(top.st);
-    return;
-  }
-
-  // 'ask'
-  stopCamera(); setScanState('');
-  S.candidates = best.slice(0,6);
-  var box=document.getElementById('matchList'); box.innerHTML='';
-  S.candidates.forEach(function(h,i){ box.appendChild(hitButton(h.st, i + 1)); });
-  say('mMatch', (r.goodEnough && r.clearEnough && !r.tellsApart)
-    ? 'What was read fits more than one of these equally well. Pick the right one.'
-    : 'Not certain enough to pick one. Choose from these, or type the name.', 'warn');
-  go('match');
+  }, Promise.resolve()).catch(function () { }).then(function () { flushing = null; setConn(navigator.onLine && !queue().length ? true : navigator.onLine); if (screen === 'pHome') paintHome(); });
+  return flushing;
 }
+setInterval(flush, CFG.flushEvery); window.addEventListener('online', flush);
+function undo(id, where) {
+  var q = queue();
+  if (q.some(function (y) { return y.id === id; })) { setQueue(q.filter(function (y) { return y.id !== id; })); return Promise.resolve(true); }
+  return post('undo', { id: id, device: device }).then(function (j) { if (!j.ok) { say(where, j.error, true); return false; } return true; }, function () { say(where, 'No signal — try the undo again in a moment.', true); return false; });
+}
+function forget(id) { var h = hist(); h.items = h.items.filter(function (x) { return x.id !== id; }); saveHist(h); }
+function undoThis() { if (!S.last) return; var id = S.last.id; undo(id, 'mSaved').then(function (ok) { if (ok) { forget(id); S.last = null; show('pHome'); paintHome(); say('mHome', 'Undone.'); } }); }
+function undoLast() {
+  var h = hist(); if (!h.items.length) return; var x = h.items[h.items.length - 1];
+  if (!confirm('Undo ' + x.name + ' (' + x.time.slice(0, 5) + ')?')) return;
+  undo(x.id, 'mHome').then(function (ok) { if (ok) { forget(x.id); paintHome(); say('mHome', 'Undone: ' + x.name + '.'); } });
+}
+function nextStudent() { S.current = null; show('pHome'); paintHome(); say('mHome', ''); }
 
-/* ── keyboard: ENTER ONLY ─────────────────────────────────────────────
-   Nothing else is bound, deliberately. A stray keystroke at a gate in the
-   morning must never be able to record a late.
-   ─────────────────────────────────────────────────────────────────── */
-document.addEventListener('keydown', function(e){
-  if (e.key !== 'Enter') return;
-  if (current === 'login')   { doLogin(); e.preventDefault(); return; }
-  if (current === 'home')    { goScan(); e.preventDefault(); return; }
-  if (current === 'confirm') { record(); e.preventDefault(); return; }
-  if (current === 'done')    { nextStudent(); e.preventDefault(); return; }
-  if (current === 'type'){
-    var first = document.querySelector('#hits .choice');
-    if (first) { first.click(); e.preventDefault(); }
-  }
-});
-
-/* ── start ──────────────────────────────────────────────────────────── */
-document.getElementById('loginDate').textContent = dateLine();
-document.getElementById('btnUndo').style.display = 'none';
-/* RESUMING MUST RE-ARM THE IDLE CLOCK, not just the session.
-
-   Until 11 August 2026 this restored the token and called bootstrap(), but
-   never called idleStart(). IDLE_MIN stayed 0, idleBump() returned on its
-   first line, and the timer never armed — so a signed-in scanner that was
-   RELOADED, or reopened in a tab the browser restored, stayed signed in
-   indefinitely.
-
-   THIS IS THE PHONE ON A LANYARD. Greenslip.html had the identical bug and it
-   was fixed there on 4 August; this file was not checked at the same time,
-   which is the whole lesson. Reloading is not an unusual thing to do — it is
-   the first thing anybody tries when a page looks stuck, and a scanner at a
-   gate in the rain looks stuck often.
-
-   The number is read back from sessionStorage because it only ever arrives
-   with the gateLogin reply, and there is no reply here. If it is missing —
-   a session stored by the older version of this page, before the key existed
-   — the fallback is 30 minutes rather than 0: on a shared device, guessing at
-   a timeout is safer than guessing at none. */
-/* Exposed for the automated checks only, exactly as the live latecoming screen
-   exposes its own. Reads nothing this page does not already show, and cannot
-   sign anybody in — S.token is only ever set by doLogin or resume. */
-window.__scan = S;
-window.__scanGo = go;
-
-(function resume(){
-  try {
-    var t = sessionStorage.getItem('sajc_gate_token');
-    var w = sessionStorage.getItem('sajc_gate_who');
-    var m = sessionStorage.getItem('sajc_gate_idle');
-    if (t && w){
-      S.token=t; S.who=w;
-      idleStart(m === null ? 30 : Number(m) || 0);
-      bootstrap(false);
-    }
-  } catch(e){}
+/* ── start ────────────────────────────────────────────────────────────── */
+(function () {
+  $('loginDate').textContent = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' });
+  $('gate').value = LS.get('gate.post', 'Security Post');
+  $('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  S.token = sessionStorage.getItem('gate.token') || '';
+  try { S.names = JSON.parse(sessionStorage.getItem('gate.names') || '[]'); } catch (e) { S.names = []; }
+  if (S.token) { show('pHome'); paintHome(); flush(); } else setConn(navigator.onLine);
 })();
 </script>
 </body>
