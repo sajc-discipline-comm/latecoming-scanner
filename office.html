@@ -29,7 +29,9 @@ h1{font-family:'Libre Caslon Display',Georgia,serif;font-weight:400;font-size:40
 .conn.off i{background:#c08a2b}
 .note{margin:16px 0;padding:12px 16px;border-radius:6px;background:var(--warn-t)}
 .note:empty{display:none}
-.login{max-width:380px;margin-top:28px;display:flex;flex-direction:column;gap:12px}
+.login{width:100%;max-width:380px;margin-top:28px;display:flex;flex-direction:column;gap:12px}
+main.out{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-bottom:12vh}
+main.out .login{text-align:left}
 input{height:48px;border:1px solid var(--line);border-radius:6px;background:var(--raised);padding:0 14px;font:inherit;font-size:16px}
 button{font:inherit}
 .btn{height:48px;border:0;border-radius:6px;background:var(--accent);color:var(--on);font-weight:600;font-size:15px;cursor:pointer;padding:0 18px}
@@ -51,7 +53,7 @@ tr.new td{animation:flash 1.6s ease}
 </style>
 </head>
 <body>
-<main>
+<main class="out" id="main">
   <h1>Today's latecomers</h1>
   <p class="date" id="date"></p>
   <div id="login" class="login"><div class="pwbox"><input id="pw" type="password" placeholder="General office password" autocomplete="current-password"><button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></button></div><button class="btn" id="go">Show today's list</button><div class="note" id="mLogin"></div></div>
@@ -84,7 +86,7 @@ $('go').onclick = login; $('pw').onkeydown = function (e) { if (e.key === 'Enter
 $('out').onclick = function () { token = ''; sessionStorage.removeItem('office.token'); location.reload(); };
 var EVERY = 2000, busy = false, timer = 0, started = false;
 function start() {
-  $('login').hidden = true; $('list').hidden = false; started = true; tick();
+  $('login').hidden = true; $('list').hidden = false; $('main').className = ''; started = true; tick();
   $('refresh').onclick = function () { tick(); };
   document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
 }

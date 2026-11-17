@@ -218,6 +218,7 @@ function show(id, keep) {
   screen = id; $('back').hidden = (id === 'pHome' || id === 'pLogin' || id === 'pSaved');
   if (id !== 'pCam') stopCamera();
   window.scrollTo(0, 0);
+  if (id === 'pHome') setTimeout(syncLog, 0);
 }
 function goBack() { var to = trail.pop() || 'pHome'; if (to === 'pCam') return goScan(true); show(to, false); if (to === 'pHome') paintHome(); }
 
@@ -354,7 +355,7 @@ function record() {
   var st = S.current; if (!st) return;
   $('btnRecord').disabled = true;
   var made = Date.now(), item = { id: device + '-' + made.toString(36) + Math.random().toString(36).slice(2, 5), studentId: st[0], name: st[1], cls: st[2], index: st[3], gate: LS.get('gate.post', 'Security Post'), device: device, madeAt: made };
-  var h = hist(); h.items.push({ id: item.id, studentId: st[0], name: st[1], cls: st[2], time: hhmm(new Date(made)) + ':00', sent: false }); saveHist(h);
+  var h = hist(); h.items.push({ id: item.id, studentId: st[0], name: st[1], cls: st[2], time: hhmm(new Date(made)) + ':00', sent: false, at: made }); saveHist(h);
   var q = queue(); q.push(item); setQueue(q);
   S.last = { id: item.id, at: made };
   show('pSaved'); $('sName').textContent = st[1]; $('sCls').textContent = st[2] || 'Not on the list'; $('sTime').textContent = hhmm(new Date(made)); say('mSaved', '');
@@ -374,10 +375,30 @@ function flush() {
         var h = hist(); h.items.forEach(function (x) { if (x.id === item.id) { x.sent = true; x.time = j.time; } }); saveHist(h);
       });
     });
-  }, Promise.resolve()).catch(function () { }).then(function () { flushing = null; setConn(navigator.onLine && !queue().length ? true : navigator.onLine); if (screen === 'pHome') paintHome(); });
+  }, Promise.resolve()).catch(function () { }).then(function () { flushing = null; setConn(navigator.onLine && !queue().length ? true : navigator.onLine); if (screen === 'pHome') { paintHome(); syncLog(); } });
   return flushing;
 }
 setInterval(flush, CFG.flushEvery); window.addEventListener('online', flush);
+/* Keep "Recorded today" in step with the sheet: anything deleted from the sheet or undone elsewhere drops off.
+   Scans still waiting to send stay, since the sheet has not seen them yet. */
+var syncing = null;
+function syncLog() {
+  if (syncing || !S.token || flushing) return syncing || Promise.resolve();
+  syncing = post('mine', { device: device }).then(function (j) {
+    if (!j.ok) { if (j.signedOut) signOut(true); return; }
+    var waiting = queue(), h = hist();
+    var items = j.scans.map(function (r) { return { id: r.id, studentId: r.studentId, name: r.name, cls: r.cls, time: r.time, sent: true }; })
+      .concat(h.items.filter(function (x) {          // not on the sheet yet: still waiting to send, or sent in the last minute
+        return !j.scans.some(function (r) { return r.id === x.id; }) && (waiting.some(function (q) { return q.id === x.id; }) || (x.at && Date.now() - x.at < 60000));
+      }));
+    items.sort(function (a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
+    h.items = items; saveHist(h);
+    if (screen === 'pHome') paintHome();
+  }).catch(function () { }).then(function () { syncing = null; });
+  return syncing;
+}
+setInterval(function () { if (screen === 'pHome' && !document.hidden) syncLog(); }, 15000);
+document.addEventListener('visibilitychange', function () { if (!document.hidden && screen === 'pHome') syncLog(); });
 function undo(id, where) {
   var q = queue();
   if (q.some(function (y) { return y.id === id; })) { setQueue(q.filter(function (y) { return y.id !== id; })); return Promise.resolve(true); }
