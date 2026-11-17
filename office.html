@@ -55,7 +55,7 @@ tr.new td{animation:flash 1.6s ease}
   </div>
 </main>
 <script>
-var API = '';    // ← the same web app address as the gate page
+var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← the same web app address as the gate page
 (function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
 var token = sessionStorage.getItem('office.token') || '', seen = {}, done = JSON.parse(sessionStorage.getItem('office.done') || '{}'), lastOk = 0, rows = [], first = true;
 function $(i) { return document.getElementById(i); }
