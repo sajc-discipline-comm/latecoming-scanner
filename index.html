@@ -96,12 +96,10 @@ canvas{display:none}
 .who{margin:28px 0 0;border-top:1px solid var(--line)}
 .who div{padding:14px 0;border-bottom:1px solid var(--line)}
 .who dt{font-size:15px;color:var(--muted);margin:0 0 2px}
-.who dd{margin:0;font-size:26px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}
-.who dd.nm{font-family:var(--head);font-weight:400;font-size:32px;line-height:1.15;word-break:break-word}
-.who dd.tm{font-size:40px;line-height:1.1}
+.who dd{margin:0;font-size:26px;font-weight:600;line-height:1.25;font-variant-numeric:tabular-nums;word-break:break-word}
 .stamp{display:flex;flex-direction:column;align-items:center;margin-top:18px}
-.stamp span{width:112px;height:112px;border-radius:50%;background:var(--good);color:#fff;display:flex;align-items:center;justify-content:center;animation:pop .25s ease}
-.stamp p{font-family:var(--head);font-size:36px;margin:12px 0 0;color:var(--good)}
+.stamp span{width:72px;height:72px;border-radius:50%;background:var(--good);color:#fff;display:flex;align-items:center;justify-content:center;animation:pop .25s ease}
+.stamp p{font-family:var(--head);font-size:30px;margin:10px 0 0;color:var(--good)}
 .stamp + .who{margin-top:20px}
 @keyframes pop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.stamp span{animation:none}}
@@ -154,7 +152,7 @@ canvas{display:none}
 </section>
 
 <section class="pane" id="pConfirm">
-  <h2 style="margin-top:8px">Record as late?</h2>
+  <h2 style="margin-top:8px">Record as late</h2>
   <dl class="who">
     <div><dt>Student</dt><dd class="nm" id="cName"></dd></div>
     <div><dt>Class</dt><dd id="cCls"></dd></div>
@@ -167,7 +165,7 @@ canvas{display:none}
 </section>
 
 <section class="pane" id="pSaved">
-  <div class="stamp"><span><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><p>Saved</p></div>
+  <div class="stamp"><span><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><p>Saved</p></div>
   <dl class="who">
     <div><dt>Student</dt><dd class="nm" id="sName"></dd></div>
     <div><dt>Class</dt><dd id="sCls"></dd></div>
@@ -181,7 +179,7 @@ canvas{display:none}
 
 <script>
 /* ── setup ─────────────────────────────────────────────────────────────── */
-var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← paste the web app address here
+var API = '';    // ← paste the web app address here
 (function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
 var CFG = { minScore: .72, minMargin: .15, undoSeconds: 30, scanEvery: 1200, maxMisses: 12, flushEvery: 15000 };
 /* Where the name sits on an MOE student card, as a fraction of the card: just the line under the crest, left of the photo.
