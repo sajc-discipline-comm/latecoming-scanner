@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Late arrivals — General Office</title>
+<title>Latecoming Tracker — General Office</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
 <!-- Read-only. Shows today's late arrivals as the gate records them, in SCMobile keying order.
@@ -36,12 +36,16 @@ tr.done td{color:var(--muted);text-decoration:line-through}
 tr.new td{animation:flash 1.6s ease}
 @keyframes flash{from{background:var(--hi)}to{background:transparent}}
 @media (prefers-reduced-motion:reduce){tr.new td{animation:none}}
+.pwbox{position:relative}
+.pwbox input{width:100%;padding-right:52px}
+.eye{position:absolute;right:4px;top:4px;width:40px;height:40px;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:6px}
+.eye[aria-pressed=true] .slash{display:none}
 </style>
 </head>
 <body>
 <main>
-  <div class="row"><div><span class="meta" id="date"></span><h1>Late arrivals</h1></div><span class="sp"></span><span class="conn" id="conn" hidden><i></i><span></span></span></div>
-  <div id="login" class="login"><input id="pw" type="password" placeholder="General office password" autocomplete="current-password"><button class="btn" id="go">Show today's list</button><div class="note" id="mLogin"></div></div>
+  <div class="row"><div><span class="meta" id="date"></span><h1>Latecoming Tracker</h1></div><span class="sp"></span><span class="conn" id="conn" hidden><i></i><span></span></span></div>
+  <div id="login" class="login"><div class="pwbox"><input id="pw" type="password" placeholder="General office password" autocomplete="current-password"><button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></button></div><button class="btn" id="go">Show today's list</button><div class="note" id="mLogin"></div></div>
   <div id="list" hidden>
     <div class="row" style="margin-top:14px"><span id="count" class="meta"></span><span class="sp"></span><button class="quiet" id="out">Sign out</button></div>
     <div class="note" id="warn"></div>
@@ -51,7 +55,7 @@ tr.new td{animation:flash 1.6s ease}
   </div>
 </main>
 <script>
-var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← the same web app address as the gate page
+var API = '';    // ← the same web app address as the gate page
 (function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
 var token = sessionStorage.getItem('office.token') || '', seen = {}, done = JSON.parse(sessionStorage.getItem('office.done') || '{}'), lastOk = 0, rows = [], first = true;
 function $(i) { return document.getElementById(i); }
@@ -66,6 +70,7 @@ function login() {
     token = j.token; sessionStorage.setItem('office.token', token); start();
   }).catch(function () { $('mLogin').textContent = 'No connection. Try again.'; });
 }
+$('eye').onclick = function () { var i = $('pw'), on = i.type === 'password'; i.type = on ? 'text' : 'password'; this.setAttribute('aria-pressed', on); this.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); };
 $('go').onclick = login; $('pw').onkeydown = function (e) { if (e.key === 'Enter') login(); };
 $('out').onclick = function () { token = ''; sessionStorage.removeItem('office.token'); location.reload(); };
 function start() { $('login').hidden = true; $('list').hidden = false; $('conn').hidden = false; tick(); setInterval(tick, 30000); }
