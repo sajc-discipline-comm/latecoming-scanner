@@ -16,11 +16,16 @@ body{margin:0;background:var(--ground);color:var(--ink);font-family:Inter,'Segoe
 main{max-width:1100px;margin:0 auto;padding:36px 32px 60px}
 h1{font-family:'Libre Caslon Display',Georgia,serif;font-weight:400;font-size:40px;margin:0}
 .meta{color:var(--muted);font-size:14px}
+.brand{display:flex;flex-direction:column;gap:4px;margin:0 0 22px}
+.brand .ey{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.brand .nm{font-family:'Libre Caslon Display',Georgia,serif;font-size:22px;line-height:1.15}
+main.out .brand{align-items:center;margin-bottom:28px}
 .date{font-size:22px;font-weight:600;margin:6px 0 0}
 .tools{margin-top:22px}
 .icon{width:40px;height:40px;border:1px solid var(--line);border-radius:6px;background:var(--raised);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .icon:hover{background:var(--hi)}
-.icon.spin svg{animation:spin .8s linear infinite}
+.icon.spin svg{animation:spin .7s linear infinite}
+.icon:active{background:var(--hi);transform:scale(.94)}
 @keyframes spin{to{transform:rotate(360deg)}}
 .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .sp{flex:1}
@@ -54,6 +59,7 @@ tr.new td{animation:flash 1.6s ease}
 </head>
 <body>
 <main class="out" id="main">
+  <div class="brand"><span class="ey">St. Andrew's Junior College</span><span class="nm">SAJC Discipline Committee</span></div>
   <h1>Today's latecomers</h1>
   <p class="date" id="date"></p>
   <div id="login" class="login"><div class="pwbox"><input id="pw" type="password" placeholder="General office password" autocomplete="current-password"><button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></button></div><button class="btn" id="go">Show today's list</button><div class="note" id="mLogin"></div></div>
@@ -84,26 +90,31 @@ function login() {
 $('eye').onclick = function () { var i = $('pw'), on = i.type === 'password'; i.type = on ? 'text' : 'password'; this.setAttribute('aria-pressed', on); this.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); };
 $('go').onclick = login; $('pw').onkeydown = function (e) { if (e.key === 'Enter') login(); };
 $('out').onclick = function () { token = ''; sessionStorage.removeItem('office.token'); location.reload(); };
-var EVERY = 2000, busy = false, timer = 0, started = false;
+var EVERY = 2000, busy = false, timer = 0, started = false, clickedAt = 0, want = false;
 function start() {
   $('login').hidden = true; $('list').hidden = false; $('main').className = ''; started = true; tick();
-  $('refresh').onclick = function () { tick(); };
+  $('refresh').onclick = function () {           // spins for at least a moment, so a click always shows
+    var b = this; b.classList.add('spin'); b.disabled = true; clickedAt = Date.now();
+    if (busy) want = true; else tick();
+  };
   document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
 }
 /* Asks again 2 seconds after each answer arrives, so requests never pile up. Pauses while the tab is hidden. */
 function tick() {
-  if (busy) return; busy = true; clearTimeout(timer); $('refresh').classList.add('spin');
+  if (busy) return; busy = true; clearTimeout(timer);
   post('today').then(function (j) {
     if (!j.ok) { if (j.signedOut) { sessionStorage.removeItem('office.token'); location.reload(); } return; }
     lastOk = Date.now(); rows = j.scans; paint(j.now);
   }).catch(function () { paint(null); }).then(function () {
-    busy = false; $('refresh').classList.remove('spin');
+    busy = false;
+    if (want) { want = false; return tick(); }
+    setTimeout(function () { if (!busy) { $('refresh').classList.remove('spin'); $('refresh').disabled = false; } }, Math.max(0, 700 - (Date.now() - clickedAt)));
     if (!document.hidden) timer = setTimeout(tick, EVERY);
   });
 }
 function paint(now) {
   var c = $('conn'), off = !now && Date.now() - lastOk > 15000;
-  c.className = 'conn' + (off ? ' off' : ''); c.querySelector('span').textContent = off ? 'Not connected — list as at ' + (lastOk ? new Date(lastOk).toTimeString().slice(0, 5) : '—') : 'Live';
+  c.className = 'conn' + (off ? ' off' : ''); c.querySelector('span').textContent = off ? 'Not connected — list as at ' + (lastOk ? new Date(lastOk).toTimeString().slice(0, 5) : '—') : 'Updated ' + new Date(lastOk).toLocaleTimeString('en-GB');
   if (!now) return;
   var list = rows.slice().sort(function (a, b) { return a.time < b.time ? 1 : a.time > b.time ? -1 : (a.name < b.name ? -1 : 1); });   // newest at the top
   var left = list.filter(function (r) { return !done[r.id]; }).length;

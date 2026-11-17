@@ -35,6 +35,9 @@ button,input,select{font:inherit;color:inherit}
 .pane.on{display:flex;animation:fade .15s ease}
 @keyframes fade{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.pane.on{animation:none}}
+.brand{display:flex;flex-direction:column;gap:4px;margin:0 0 22px}
+.brand .ey{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.brand .nm{font-family:var(--head);font-size:22px;line-height:1.15}
 h1{font-family:var(--head);font-weight:400;font-size:36px;line-height:1.1;margin:0}
 h2{font-family:var(--head);font-weight:400;font-size:30px;line-height:1.15;margin:0}
 .lede{font-size:17px;color:var(--muted);margin:6px 0 18px}
@@ -109,6 +112,7 @@ canvas{display:none}
 <div class="top"><button class="back" id="back" hidden onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>Back</button><span class="conn" id="conn"><i></i><span>Connected</span></span></div>
 
 <section class="pane on" id="pLogin">
+  <div class="brand"><span class="ey">St. Andrew's Junior College</span><span class="nm">SAJC Discipline Committee</span></div>
   <h1>Latecoming Tracker</h1>
   <p class="lede" id="loginDate"></p>
   <div class="msg" id="mLogin"></div>
@@ -118,6 +122,7 @@ canvas{display:none}
 </section>
 
 <section class="pane" id="pHome">
+  <div class="brand"><span class="ey">St. Andrew's Junior College</span><span class="nm">SAJC Discipline Committee</span></div>
   <h1>Latecoming Tracker</h1>
   <p class="lede" id="homeCount"></p>
   <div class="msg" id="mHome"></div>
