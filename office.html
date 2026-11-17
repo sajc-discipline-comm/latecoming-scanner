@@ -3,18 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Latecoming Tracker — General Office</title>
+<title>Today's latecomers — General Office</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
-<!-- Read-only. Shows today's late arrivals as the gate records them, in SCMobile keying order.
+<!-- Read-only. Shows today's late arrivals as the gate records them, newest first.
      Nothing here is saved anywhere: the ticks live in this tab only. Code only — no student data in this file. -->
 <style>
 :root{--ground:#f6f5f1;--raised:#fbfaf7;--ink:#1b1e2b;--muted:#5c6070;--line:#d9d6cd;--accent:#27326a;--on:#fff;--hi:#e3e6f2;--good:#2b6349;--warn-t:#f5ecd6;--bad-t:#f6e3df}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:Inter,'Segoe UI',system-ui,sans-serif;font-size:15px;line-height:1.45}
 main{max-width:1100px;margin:0 auto;padding:36px 32px 60px}
 h1{font-family:'Libre Caslon Display',Georgia,serif;font-weight:400;font-size:40px;margin:0}
 .meta{color:var(--muted);font-size:14px}
+.date{font-size:22px;font-weight:600;margin:6px 0 0}
+.tools{margin-top:22px}
+.icon{width:40px;height:40px;border:1px solid var(--line);border-radius:6px;background:var(--raised);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.icon:hover{background:var(--hi)}
+.icon.spin svg{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .sp{flex:1}
 .conn{display:flex;gap:7px;align-items:center;font-size:14px;color:var(--muted)}
@@ -32,10 +39,11 @@ th{text-align:left;font-size:12px;font-weight:600;letter-spacing:.08em;text-tran
 td{padding:12px;border-bottom:1px solid var(--line);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 tr.k{cursor:pointer}
 tr.k:hover td{background:var(--hi)}
-tr.done td{color:var(--muted);text-decoration:line-through}
+tr.done td{color:var(--muted);background:#ecebe6;text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:var(--ink)}
+tr.done:hover td{background:#e4e3dd}
 tr.new td{animation:flash 1.6s ease}
 @keyframes flash{from{background:var(--hi)}to{background:transparent}}
-@media (prefers-reduced-motion:reduce){tr.new td{animation:none}}
+@media (prefers-reduced-motion:reduce){tr.new td,.icon.spin svg{animation:none}}
 .pwbox{position:relative}
 .pwbox input{width:100%;padding-right:52px}
 .eye{position:absolute;right:4px;top:4px;width:40px;height:40px;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:6px}
@@ -44,25 +52,26 @@ tr.new td{animation:flash 1.6s ease}
 </head>
 <body>
 <main>
-  <div class="row"><div><span class="meta" id="date"></span><h1>Latecoming Tracker</h1></div><span class="sp"></span><span class="conn" id="conn" hidden><i></i><span></span></span></div>
+  <h1>Today's latecomers</h1>
+  <p class="date" id="date"></p>
   <div id="login" class="login"><div class="pwbox"><input id="pw" type="password" placeholder="General office password" autocomplete="current-password"><button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></button></div><button class="btn" id="go">Show today's list</button><div class="note" id="mLogin"></div></div>
   <div id="list" hidden>
-    <div class="row" style="margin-top:14px"><span id="count" class="meta"></span><span class="sp"></span><button class="quiet" id="out">Sign out</button></div>
+    <div class="row tools"><span id="count"></span><span class="sp"></span><span class="conn" id="conn"><i></i><span></span></span><button class="icon" id="refresh" title="Refresh now" aria-label="Refresh now"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button><button class="quiet" id="out">Sign out</button></div>
     <div class="note" id="warn"></div>
-    <p class="meta">Click a student once you have keyed them into SCMobile. It only marks your place — nothing is saved, and clicking again undoes it.</p>
-    <table><colgroup><col style="width:90px"><col style="width:90px"><col style="width:80px"><col><col style="width:150px"></colgroup>
-      <thead><tr><th>Cohort</th><th>Class</th><th>Index</th><th>Name</th><th>Arrived</th></tr></thead><tbody id="rows"></tbody></table>
+    <p class="meta">Once you have keyed a student into SCMobile, click their name here to check them off the list.</p>
+    <table><colgroup><col style="width:110px"><col><col style="width:110px"><col style="width:90px"><col style="width:90px"></colgroup>
+      <thead><tr><th>Arrived</th><th>Name</th><th>Class</th><th>Index</th><th>Cohort</th></tr></thead><tbody id="rows"></tbody></table>
   </div>
 </main>
 <script>
-var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← the same web app address as the gate page
+var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';
 (function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
 var token = sessionStorage.getItem('office.token') || '', seen = {}, done = JSON.parse(sessionStorage.getItem('office.done') || '{}'), lastOk = 0, rows = [], first = true;
 function $(i) { return document.getElementById(i); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 function post(a, b) { b = b || {}; b.action = a; if (token) b.token = token; return fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(b) }).then(function (r) { return r.json(); }); }
 function cohort(cls) { var y = +String(cls).slice(0, 2), now = new Date().getFullYear() % 100; return y === now ? 'JC1' : y === now - 1 ? 'JC2' : y > now ? 'JC1' : '—'; }
-$('date').textContent = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long' });
+$('date').textContent = new Date().toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 function login() {
   if (!API) { $('mLogin').textContent = 'This page has not been connected to the Google script yet.'; return; }
   post('login', { role: 'office', password: $('pw').value }).then(function (j) {
@@ -73,23 +82,33 @@ function login() {
 $('eye').onclick = function () { var i = $('pw'), on = i.type === 'password'; i.type = on ? 'text' : 'password'; this.setAttribute('aria-pressed', on); this.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); };
 $('go').onclick = login; $('pw').onkeydown = function (e) { if (e.key === 'Enter') login(); };
 $('out').onclick = function () { token = ''; sessionStorage.removeItem('office.token'); location.reload(); };
-function start() { $('login').hidden = true; $('list').hidden = false; $('conn').hidden = false; tick(); setInterval(tick, 30000); }
+var EVERY = 2000, busy = false, timer = 0, started = false;
+function start() {
+  $('login').hidden = true; $('list').hidden = false; started = true; tick();
+  $('refresh').onclick = function () { tick(); };
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+}
+/* Asks again 2 seconds after each answer arrives, so requests never pile up. Pauses while the tab is hidden. */
 function tick() {
+  if (busy) return; busy = true; clearTimeout(timer); $('refresh').classList.add('spin');
   post('today').then(function (j) {
     if (!j.ok) { if (j.signedOut) { sessionStorage.removeItem('office.token'); location.reload(); } return; }
     lastOk = Date.now(); rows = j.scans; paint(j.now);
-  }).catch(function () { paint(null); });
+  }).catch(function () { paint(null); }).then(function () {
+    busy = false; $('refresh').classList.remove('spin');
+    if (!document.hidden) timer = setTimeout(tick, EVERY);
+  });
 }
 function paint(now) {
-  var c = $('conn'), off = !now && Date.now() - lastOk > 45000;
-  c.className = 'conn' + (off ? ' off' : ''); c.querySelector('span').textContent = off ? 'Not connected — list as at ' + (lastOk ? new Date(lastOk).toTimeString().slice(0, 5) : '—') : 'Updates every 30 seconds';
+  var c = $('conn'), off = !now && Date.now() - lastOk > 15000;
+  c.className = 'conn' + (off ? ' off' : ''); c.querySelector('span').textContent = off ? 'Not connected — list as at ' + (lastOk ? new Date(lastOk).toTimeString().slice(0, 5) : '—') : 'Live';
   if (!now) return;
-  var list = rows.slice().sort(function (a, b) { var ka = cohort(a.cls) + a.cls, kb = cohort(b.cls) + b.cls; return ka < kb ? -1 : ka > kb ? 1 : (+a.index || 999) - (+b.index || 999) || (a.name < b.name ? -1 : 1); });
+  var list = rows.slice().sort(function (a, b) { return a.time < b.time ? 1 : a.time > b.time ? -1 : (a.name < b.name ? -1 : 1); });   // newest at the top
   var left = list.filter(function (r) { return !done[r.id]; }).length;
   $('count').textContent = list.length + ' recorded · ' + left + ' still to key in';
   var last = rows.reduce(function (a, r) { return r.time > a ? r.time : a; }, ''), hm = now.time.slice(0, 5);
   $('warn').textContent = (hm >= '07:45' && hm <= '09:45') ? (!rows.length && hm >= '08:20' ? 'No scans at all this morning. Check with the gate.' : (last && minutes(hm) - minutes(last.slice(0, 5)) > 10 ? 'No scans since ' + last.slice(0, 5) + '. Check with the gate — or it is just a quiet morning.' : '')) : '';
-  $('rows').innerHTML = list.map(function (r) { return '<tr class="k' + (done[r.id] ? ' done' : '') + (!first && !seen[r.id] ? ' new' : '') + '" data-id="' + esc(r.id) + '"><td>' + cohort(r.cls) + '</td><td>' + esc(r.cls || '—') + '</td><td>' + esc(r.index || '—') + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.time.slice(0, 5)) + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="meta">No late arrivals recorded yet this morning.</td></tr>';
+  $('rows').innerHTML = list.map(function (r) { return '<tr class="k' + (done[r.id] ? ' done' : '') + (!first && !seen[r.id] ? ' new' : '') + '" data-id="' + esc(r.id) + '"><td>' + esc(r.time.slice(0, 5)) + '</td><td>' + esc(r.name) + '</td><td>' + esc(r.cls || '—') + '</td><td>' + esc(r.index || '—') + '</td><td>' + cohort(r.cls) + '</td></tr>'; }).join('') || '<tr><td colspan="5" class="meta">No late arrivals recorded yet this morning.</td></tr>';
   list.forEach(function (r) { seen[r.id] = 1; }); first = false;
   document.querySelectorAll('tr.k').forEach(function (tr) { tr.onclick = function () { var id = tr.dataset.id; if (done[id]) delete done[id]; else done[id] = 1; sessionStorage.setItem('office.done', JSON.stringify(done)); tr.classList.toggle('done'); paint(now); }; });
 }
