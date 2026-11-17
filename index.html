@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#f6f5f1">
-<title>SAJC Gate</title>
+<title>Latecoming Tracker — Gate</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap" rel="stylesheet">
 <!--
@@ -89,22 +89,38 @@ h2{font-family:var(--head);font-weight:400;font-size:30px;line-height:1.15;margi
 .shutter:disabled{opacity:.4}
 .state{text-align:right;font-size:15px;color:var(--muted)}
 canvas{display:none}
+.pwbox{position:relative}
+.pwbox input{width:100%;padding-right:60px}
+.eye{position:absolute;right:6px;top:6px;width:48px;height:48px;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px}
+.eye[aria-pressed=true] .slash{display:none}
+.who{margin:28px 0 0;border-top:1px solid var(--line)}
+.who div{padding:14px 0;border-bottom:1px solid var(--line)}
+.who dt{font-size:15px;color:var(--muted);margin:0 0 2px}
+.who dd{margin:0;font-size:26px;font-weight:600;line-height:1.2;font-variant-numeric:tabular-nums}
+.who dd.nm{font-family:var(--head);font-weight:400;font-size:32px;line-height:1.15;word-break:break-word}
+.who dd.tm{font-size:40px;line-height:1.1}
+.stamp{display:flex;flex-direction:column;align-items:center;margin-top:18px}
+.stamp span{width:112px;height:112px;border-radius:50%;background:var(--good);color:#fff;display:flex;align-items:center;justify-content:center;animation:pop .25s ease}
+.stamp p{font-family:var(--head);font-size:36px;margin:12px 0 0;color:var(--good)}
+.stamp + .who{margin-top:20px}
+@keyframes pop{from{transform:scale(.85);opacity:.4}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.stamp span{animation:none}}
 </style>
 </head>
 <body>
 <div class="top"><button class="back" id="back" hidden onclick="goBack()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg>Back</button><span class="conn" id="conn"><i></i><span>Connected</span></span></div>
 
 <section class="pane on" id="pLogin">
-  <h1>Late arrivals</h1>
+  <h1>Latecoming Tracker</h1>
   <p class="lede" id="loginDate"></p>
   <div class="msg" id="mLogin"></div>
   <div class="field"><label for="gate">Gate</label><select id="gate"><option>Security Post</option><option>JB Bridge</option></select></div>
-  <div class="field"><label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password"></div>
+  <div class="field"><label for="pw">Password</label><div class="pwbox"><input id="pw" type="password" autocomplete="current-password"><button type="button" class="eye" id="eye" aria-label="Show password" aria-pressed="false" onclick="togglePw()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="slash" d="M4 4l16 16"/></svg></button></div></div>
   <button class="btn" id="btnLogin" onclick="doLogin()">Sign in</button>
 </section>
 
 <section class="pane" id="pHome">
-  <h1>Late arrivals</h1>
+  <h1>Latecoming Tracker</h1>
   <p class="lede" id="homeCount"></p>
   <div class="msg" id="mHome"></div>
   <div class="search" onclick="goType()"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><span style="flex:1">Type a name</span>
@@ -138,9 +154,12 @@ canvas{display:none}
 </section>
 
 <section class="pane" id="pConfirm">
-  <p class="big" id="cName"></p>
-  <p class="cls" id="cCls"></p>
-  <div class="time"><small>Time of arrival</small><strong id="cTime"></strong></div>
+  <h2 style="margin-top:8px">Record as late?</h2>
+  <dl class="who">
+    <div><dt>Student</dt><dd class="nm" id="cName"></dd></div>
+    <div><dt>Class</dt><dd id="cCls"></dd></div>
+    <div><dt>Time of arrival</dt><dd class="tm" id="cTime"></dd></div>
+  </dl>
   <div class="msg" id="mConfirm"></div>
   <div class="sp"></div>
   <button class="btn" id="btnRecord" onclick="record()">Record as late</button>
@@ -148,10 +167,12 @@ canvas{display:none}
 </section>
 
 <section class="pane" id="pSaved">
-  <div class="tick"><span><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><h2>Saved</h2></div>
-  <p class="big" id="sName" style="font-size:34px;margin-top:22px"></p>
-  <p class="cls" id="sCls"></p>
-  <div class="time"><small>Time of arrival</small><strong id="sTime"></strong></div>
+  <div class="stamp"><span><svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg></span><p>Saved</p></div>
+  <dl class="who">
+    <div><dt>Student</dt><dd class="nm" id="sName"></dd></div>
+    <div><dt>Class</dt><dd id="sCls"></dd></div>
+    <div><dt>Time of arrival</dt><dd class="tm" id="sTime"></dd></div>
+  </dl>
   <div class="msg" id="mSaved"></div>
   <div class="sp"></div>
   <button class="btn" onclick="nextStudent()">Next student</button>
@@ -160,7 +181,7 @@ canvas{display:none}
 
 <script>
 /* ── setup ─────────────────────────────────────────────────────────────── */
-var API = 'https://script.google.com/macros/s/AKfycbz30kSEhCeopfnuJRxQav7tOUP-iRTTOFpfWrmZJPTZfX1KMdJQtGIAH7s5_7eqTw67dA/exec';    // ← paste the web app address here
+var API = '';    // ← paste the web app address here
 (function(){ var m = location.search.match(/[?&]api=([^&]+)/); if (m) API = decodeURIComponent(m[1]); })();
 var CFG = { minScore: .72, minMargin: .15, undoSeconds: 30, scanEvery: 1200, maxMisses: 12, flushEvery: 15000 };
 /* Where the name sits on an MOE student card, as a fraction of the card: just the line under the crest, left of the photo.
@@ -213,9 +234,10 @@ function doLogin() {
     if (!j.ok) return say('mLogin', j.error, true);
     S.token = j.token; S.names = j.names || [];
     sessionStorage.setItem('gate.token', S.token); sessionStorage.setItem('gate.names', JSON.stringify(S.names));
-    $('pw').value = ''; show('pHome'); paintHome(); flush();
+    $('pw').value = ''; $('pw').type = 'password'; $('eye').setAttribute('aria-pressed', 'false'); show('pHome'); paintHome(); flush();
   }).catch(function () { $('btnLogin').disabled = false; say('mLogin', 'No signal. Try again in a moment.', true); });
 }
+function togglePw() { var i = $('pw'), b = $('eye'), on = i.type === 'password'; i.type = on ? 'text' : 'password'; b.setAttribute('aria-pressed', on); b.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); }
 function signOut(expired) {
   S.token = ''; sessionStorage.removeItem('gate.token'); sessionStorage.removeItem('gate.names');
   show('pLogin'); if (expired) say('mLogin', 'Signed out. Sign in again.', true);
